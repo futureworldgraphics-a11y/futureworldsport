@@ -1,7 +1,12 @@
-import { Gfx, rng, type Ctx, type Env, type P } from "./core";
+import { rng, type Ctx, type Env, type P } from "./core";
 import { Film } from "./film";
 import { clamp, lerp } from "./gallery";
-import { W, H, FPS, FLAT, ease, easeOut, ramp, cached, grain, layer, text, textWidth, glow } from "./spaceStyle";
+import { W, H, FPS, ease, easeOut, ramp } from "./spaceStyle";
+import {
+  TAU, CX, CY, BAR, WHITE, PALE, CYAN, BLUE, VIO, PINK, AMBER, GOLD, RED, GREEN, WARM, NEON, TXT, DIMT, GOLDT,
+  g1, win, col, dot, hair, hairG, fade, beads, ellipse, flare, reticle, trail, glow, makeCamera, makeStars, drawStars, makeTint,
+  v3, norm, randLand, makeSphere, project, drawGlobe, globeArc, beginFrame, endFrame, hudTables, fmt, fades, type V3, type Label, type Line,
+} from "./cinemaKit";
 
 // PALE BLUE DOT · one continuous 95.1 s shot. Word times come from forced alignment of the given
 // transcript (pocketsphinx), so every beat lands on its word. Look: "data space": everything is
@@ -38,7 +43,7 @@ import { W, H, FPS, FLAT, ease, easeOut, ramp, cached, grain, layer, text, textW
 //  84.5   (music)                                 keep pulling back into the cosmic web; PALE BLUE DOT; fade out
 
 const DURATION = 2853; // 95.10 s (audio 95.112 s)
-const CUE = {
+export const CUE = {
   from: 4.1, earth: 6.46, of: 8.34, but: 11.4, diff: 12.65, consider: 14.46, dot: 15.44, here: 16.95, home: 18.44, us: 19.59,
   onit: 21.76, love: 22.94, know: 24.55, heard: 26.5, human: 28.27, lived: 30.88, aggregate: 32.09, joy: 34.57, suffer: 35.12,
   thousands: 35.59, confident: 37.69, ideologies: 39.04, economic: 39.88, hunter: 41.89, hero: 44.2, creator: 45.74,
@@ -47,101 +52,16 @@ const CUE = {
   history: 68.44, livedThere: 70.45, mote: 71.97, suspended: 73.75, sunbeam: 75.48, earth2: 77.44, small: 78.72, stage: 80.11,
   vast: 81.56, cosmic: 82.79, arena: 83.68, title: 87.0, end: 95.1,
 };
-const TAU = Math.PI * 2, CX = 960, CY = 540, BAR = 138;
-const WHITE = "235,244,255", PALE = "150,205,255", CYAN = "110,220,255", BLUE = "120,160,255", VIO = "170,130,255", PINK = "255,100,200";
-const AMBER = "255,170,80", GOLD = "255,210,130", RED = "255,70,90", GREEN = "120,240,170", WARM = "255,190,120";
-const NEON = [PINK, CYAN, AMBER, VIO, "255,140,90", BLUE];
-const TXT = "#e6f2ff", DIMT = "#8391b8", GOLDT = "#ffd58a", PALET = "#a8d6ff";
-
-// ================================================================ small drawing kit (additive art layer)
-const col = (rgb: string, a: number) => `rgba(${rgb},${clamp(a).toFixed(3)})`;
-const g1 = (t: number, c: number, s: number) => Math.exp(-(((t - c) / s) ** 2));
-const win = (t: number, a: number, b: number, fi = 0.4, fo = 0.4) => ramp(t, a, fi) * (1 - ramp(t, b - fo, fo));
-const dot = (c: Ctx, x: number, y: number, r: number, rgb: string, a: number) => {
-  if (a <= 0.004 || r <= 0 || x < -40 || x > W + 40 || y < -40 || y > H + 40) return;
-  c.fillStyle = col(rgb, a);
-  if (r < 1.1) { c.fillRect(x - r, y - r, r * 2, r * 2); return; }
-  c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill();
-};
-const trace = (c: Ctx, pts: P[], prog = 1) => {
-  if (prog <= 0 || pts.length < 2) return false;
-  let total = 0; const seg: number[] = [];
-  for (let i = 1; i < pts.length; i++) { const l = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); seg.push(l); total += l; }
-  const target = clamp(prog) * total; let acc = 0;
-  c.beginPath(); c.moveTo(pts[0][0], pts[0][1]);
-  for (let i = 1; i < pts.length; i++) {
-    const l = seg[i - 1];
-    if (acc + l >= target) { const k = l > 0 ? (target - acc) / l : 0; c.lineTo(lerp(pts[i - 1][0], pts[i][0], k), lerp(pts[i - 1][1], pts[i][1], k)); break; }
-    c.lineTo(pts[i][0], pts[i][1]); acc += l;
-  }
-  return true;
-};
-const hair = (c: Ctx, pts: P[], rgb: string, a: number, w = 1, prog = 1) => { if (a <= 0.004) return; c.strokeStyle = col(rgb, a); c.lineWidth = w; if (trace(c, pts, prog)) c.stroke(); };
-const hairG = (c: Ctx, pts: P[], rgb: string, a: number, w = 1, prog = 1) => { hair(c, pts, rgb, a * 0.12, w * 5, prog); hair(c, pts, rgb, a * 0.3, w * 2.3, prog); hair(c, pts, rgb, a, w, prog); };
-const fade = (c: Ctx, a: P, b: P, rgb: string, a0: number, a1: number, w: number) => {
-  if (Math.max(a0, a1) <= 0.004) return;
-  const gr = c.createLinearGradient(a[0], a[1], b[0], b[1]); gr.addColorStop(0, col(rgb, a0)); gr.addColorStop(1, col(rgb, a1));
-  c.strokeStyle = gr; c.lineWidth = w; c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();
-};
-// points strung along a polyline: the dotted-light look of the references
-const beads = (c: Ctx, pts: P[], gap: number, r: number, rgb: string, a: number, prog = 1) => {
-  if (a <= 0.004 || prog <= 0) return;
-  let carry = 0, total = 0; for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
-  const stop = total * clamp(prog); let run = 0;
-  for (let i = 1; i < pts.length; i++) {
-    const [x0, y0] = pts[i - 1], [x1, y1] = pts[i], l = Math.hypot(x1 - x0, y1 - y0);
-    let s = carry;
-    while (s <= l) { if (run + s > stop) return; const k = l > 0 ? s / l : 0; dot(c, lerp(x0, x1, k), lerp(y0, y1, k), r, rgb, a); s += gap; }
-    carry = s - l; run += l;
-  }
-};
-const ellipse = (cx: number, cy: number, rx: number, ry: number, rot: number, n: number, a0 = 0, a1 = TAU): P[] => {
-  const cr = Math.cos(rot), sr = Math.sin(rot);
-  return Array.from({ length: n + 1 }, (_, i) => { const a = a0 + ((a1 - a0) * i) / n, x = Math.cos(a) * rx, y = Math.sin(a) * ry; return [cx + x * cr - y * sr, cy + x * sr + y * cr] as P; });
-};
-// starburst: hot core, uneven rays, an anamorphic streak
-const flare = (c: Ctx, x: number, y: number, R: number, rgb: string, a: number, seed: number, rot = 0, rays = 14) => {
-  if (a <= 0.004 || R <= 0) return;
-  glow(c, x, y, R * 4, rgb, a * 0.35); glow(c, x, y, R * 1.6, rgb, a * 0.8); glow(c, x, y, R * 0.7, "255,250,240", a);
-  const r = rng(seed); c.lineCap = "round";
-  for (let k = 0; k < rays; k++) {
-    const an = rot + (k / rays) * TAU + (r() - 0.5) * 0.25, len = R * (2.5 + r() * r() * 9), w = 0.8 + r() * 1.8;
-    fade(c, [x, y], [x + Math.cos(an) * len, y + Math.sin(an) * len], k % 3 ? rgb : WHITE, a * (0.55 + r() * 0.4), 0, w);
-  }
-  c.save(); c.translate(x, y); c.scale(1, 0.035); glow(c, 0, 0, R * 9, rgb, a * 0.45); c.restore();
-};
 
 // ================================================================ camera: one z-travel for the whole film
-// stars are a 3D field; the camera's z speed spikes on the dive and the two pull-backs, and the
-// streaks are true motion blur (projection now vs a moment ago)
+// the camera's z speed spikes on the dive and the two pull-backs; stars streak with real motion blur
 const speed = (t: number) => 0.012 + 1.15 * g1(t, 22.3, 0.6) - 0.9 * g1(t, 72.2, 0.65) - 0.85 * g1(t, 82.5, 0.75) - 0.07 * ramp(t, 84.5, 3);
 const panRate = (t: number) => 0.03 * ramp(t, 32.5, 1.5) * (1 - ramp(t, 58.3, 1.5));
-const STEP = 1 / 120, NST = Math.ceil(96 / STEP) + 2;
-const CAM = (() => { const z = new Float64Array(NST), p = new Float64Array(NST); for (let i = 1; i < NST; i++) { const t = i * STEP; z[i] = z[i - 1] + speed(t) * STEP; p[i] = p[i - 1] + panRate(t) * STEP; } return { z, p }; })();
-const camAt = (arr: Float64Array, t: number) => { const f = clamp(t / STEP, 0, NST - 2), i = Math.floor(f); return lerp(arr[i], arr[i + 1], f - i); };
-const STARS = (() => { const r = rng(5); return Array.from({ length: 1900 }, () => ({ x: (r() - 0.5) * 4.4, y: (r() - 0.5) * 2.8, z: r(), m: r(), h: Math.floor(r() * 6) })); })();
-const starProj = (s: { x: number; y: number; z: number }, t: number) => {
-  const d = (((s.z - camAt(CAM.z, t)) % 1) + 1) % 1, depth = 0.03 + d * 1.2, xw = ((((s.x - camAt(CAM.p, t)) % 4.4) + 6.6) % 4.4) - 2.2;
-  return { x: CX + (xw * 620) / depth, y: CY + (s.y * 620) / depth, d, depth };
-};
-const drawStars = (c: Ctx, t: number, A: number) => {
-  if (A <= 0) return;
-  const v = Math.abs(speed(t)), neon = clamp(v / 0.5);
-  c.lineCap = "round";
-  for (const s of STARS) {
-    const p = starProj(s, t); if (p.x < -60 || p.x > W + 60 || p.y < -60 || p.y > H + 60) continue;
-    const a = A * (0.18 + 0.7 * s.m * s.m) * clamp(p.d / 0.06) * clamp((1 - p.d) / 0.25), r = clamp((0.45 + 1.3 * s.m) * (0.3 / p.depth), 0.4, 2.4);
-    if (a <= 0.01) continue;
-    const rgb = neon > 0.15 && s.h < 5 ? NEON[s.h] : s.h % 3 === 0 ? PALE : WHITE, q = starProj(s, t - 0.07);
-    const dx = p.x - q.x, dy = p.y - q.y, L = Math.hypot(dx, dy);
-    if (L > 2 && L < 700) fade(c, [q.x, q.y], [p.x, p.y], rgb, 0, a * (0.6 + 0.4 * neon), r * 1.4);
-    dot(c, p.x, p.y, r, rgb, a);
-  }
-};
+const CAM = makeCamera(speed, panRate, 96), STARS = makeStars(5, 1900);
 
 // background tint keyframes (inner colour of a radial wash; edges go darker)
 const TINT: [number, number, number, number][] = [[0, 5, 7, 16], [6, 13, 10, 13], [11, 12, 9, 17], [15, 18, 10, 17], [21.5, 13, 10, 19], [23, 4, 10, 23], [32, 6, 10, 24], [34.5, 20, 8, 27], [42, 14, 8, 25], [59, 17, 8, 27], [70, 7, 8, 20], [73, 17, 12, 11], [78, 19, 13, 10], [82, 6, 8, 19], [95.2, 3, 4, 10]];
-const tint = (t: number): [number, number, number] => { let i = 0; while (i < TINT.length - 2 && t > TINT[i + 1][0]) i++; const [t0, ...a] = TINT[i], [t1, ...b] = TINT[i + 1], k = ease(clamp((t - t0) / (t1 - t0))); return [lerp(a[0], b[0], k), lerp(a[1], b[1], k), lerp(a[2], b[2], k)]; };
+const tint = makeTint(TINT);
 
 // ================================================================ Voyager 1, dotted wireframe (local units, dish axis = +x)
 const VOY = (() => {
@@ -183,23 +103,8 @@ const sunAt = (t: number): P => {
 };
 const earthAt = (t: number): P => { const s = sunAt(t), e = orbPos(2, t, sysK(t)); return [s[0] + e[0], s[1] + e[1]]; };
 
-// ================================================================ globe (fibonacci point cloud, blob continents)
-type V3 = [number, number, number];
-const v3 = (lat: number, lon: number): V3 => [Math.cos(lat) * Math.sin(lon), -Math.sin(lat), Math.cos(lat) * Math.cos(lon)];
-const norm = (v: V3): V3 => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
-const BLOBS: [number, number, number][] = [
-  [60, -110, 18], [48, -100, 16], [40, -95, 14], [35, -112, 10], [31, -88, 8], [24, -102, 8], [18, -97, 6], [64, -152, 10], [70, -82, 11], [58, -72, 9], [48, -66, 6], [44, -78, 8], [12, -86, 4],
-  [0, -60, 14], [-10, -55, 15], [-20, -50, 12], [-30, -62, 10], [-40, -68, 7], [-50, -71, 5], [5, -70, 9], [-8, -76, 7], [72, -40, 12],
-  [50, 10, 10], [45, 4, 8], [55, 26, 12], [61, 15, 8], [40, -4, 6], [42, 13, 4], [65, 27, 8],
-  [10, 20, 18], [6, 0, 10], [16, 0, 12], [0, 25, 15], [-10, 26, 14], [-20, 25, 12], [-29, 24, 8], [25, 15, 14], [27, 30, 8], [8, 40, 8], [-19, 47, 4],
-  [60, 60, 18], [60, 90, 18], [62, 120, 16], [65, 150, 10], [50, 80, 15], [45, 100, 15], [35, 105, 14], [30, 80, 10], [22, 78, 9], [15, 77, 6], [25, 45, 10], [33, 53, 8], [40, 65, 9], [15, 102, 7], [36, 138, 5], [3, 112, 6], [0, 116, 5], [-4, 121, 5], [-5, 141, 6],
-  [-25, 133, 14], [-20, 124, 8], [-30, 145, 8], [-42, 172, 4], [-80, 0, 15], [-80, 90, 15], [-80, 180, 15], [-80, -90, 15], [-72, -62, 6],
-];
-const BLOBV = BLOBS.map(([la, lo, r]) => ({ v: v3((la * Math.PI) / 180, (lo * Math.PI) / 180), c: Math.cos((r * Math.PI) / 180) }));
-const isLand = (v: V3) => BLOBV.some((b) => b.v[0] * v[0] + b.v[1] * v[1] + b.v[2] * v[2] > b.c);
-const FIB = (() => { const n = 2600, r = rng(9), out: { v: V3; land: boolean; city: boolean }[] = []; for (let i = 0; i < n; i++) { const y = 1 - (2 * (i + 0.5)) / n, rad = Math.sqrt(1 - y * y), th = i * 2.399963; const v: V3 = [Math.cos(th) * rad, y, Math.sin(th) * rad], land = isLand(v); out.push({ v, land, city: land && r() < 0.35 }); } return out; })();
-const randLand = (r: () => number, landBias: number): V3 => { for (;;) { const z = 2 * r() - 1, a = r() * TAU, s = Math.sqrt(1 - z * z), v: V3 = [s * Math.cos(a), z, s * Math.sin(a)]; if (r() > landBias || isLand(v)) return v; } };
-const TILT = 0.41, LIGHT = norm([-0.75, -0.3, 0.6]);
+// ================================================================ globe: the kit's point-cloud Earth, plus everyone on it
+const FIB = makeSphere(2600, 9);
 const lonAt = (t: number) => 0.9 + 0.07 * t;
 const P0: V3 = v3(0.45, -lonAt(26) - 0.35);
 const near = (r: () => number, base: V3, spread: number): V3 => norm([base[0] + (r() - 0.5) * 2 * spread, base[1] + (r() - 0.5) * 2 * spread, base[2] + (r() - 0.5) * 2 * spread]);
@@ -212,43 +117,6 @@ const PEOPLE = (() => {
   const life = [...all, ...dust].map((v) => ({ v, d: ang(v), l: r(), s: 0.6 + r() * 0.8 }));
   return { love, know, heardArcs, life };
 })();
-type Proj = { x: number; y: number; z: number };
-const project = (v: V3, cx: number, cy: number, R: number, lon: number): Proj => {
-  const cl = Math.cos(lon), sl = Math.sin(lon), x1 = v[0] * cl + v[2] * sl, z1 = -v[0] * sl + v[2] * cl, ct = Math.cos(TILT), st = Math.sin(TILT);
-  const y2 = v[1] * ct - z1 * st, z2 = v[1] * st + z1 * ct;
-  return { x: cx + x1 * R, y: cy + y2 * R, z: z2 };
-};
-const shadeOf = (p: Proj, cx: number, cy: number, R: number) => { const nx = (p.x - cx) / R, ny = (p.y - cy) / R; return nx * LIGHT[0] + ny * LIGHT[1] + p.z * LIGHT[2]; };
-const drawGlobe = (c: Ctx, cx: number, cy: number, R: number, lon: number, A: number, rings: number) => {
-  if (A <= 0.004) return;
-  if (R < 7) { glow(c, cx, cy, 10 + R * 3, PALE, 0.5 * A); dot(c, cx, cy, Math.max(1.6, R), "215,235,255", A); return; }
-  glow(c, cx, cy, R * 1.35, "80,140,255", 0.16 * A);
-  const pr = clamp(R / 300, 0.35, 1.6) * 1.5;
-  for (const f of FIB) {
-    const p = project(f.v, cx, cy, R, lon);
-    if (p.z < 0) { if (f.land) dot(c, p.x, p.y, pr * 0.6, BLUE, 0.07 * A); continue; }
-    const sh = shadeOf(p, cx, cy, R), day = clamp(0.2 + 0.8 * sh * 1.3);
-    if (f.land) dot(c, p.x, p.y, pr, sh > -0.05 ? "130,235,205" : BLUE, A * (0.25 + 0.7 * day));
-    else dot(c, p.x, p.y, pr * 0.8, "80,140,255", A * (0.08 + 0.3 * day));
-    if (f.city && sh < 0.05) dot(c, p.x, p.y, pr * 0.9, WARM, A * 0.8 * clamp(-sh * 4 + 0.3));
-  }
-  c.lineWidth = 2; c.strokeStyle = col(PALE, 0.45 * A); c.beginPath(); c.arc(cx, cy, R, 0, TAU); c.stroke();
-  c.lineWidth = 7; c.strokeStyle = col("100,170,255", 0.12 * A); c.beginPath(); c.arc(cx, cy, R * 1.02, 0, TAU); c.stroke();
-  if (rings > 0) for (const [k, rot, ph] of [[1.34, 0.32, 0], [1.55, -0.22, 2]] as const) beads(c, ellipse(cx, cy, R * k, R * k * 0.26, rot, 90, ph + 0.05 * lon, ph + 0.05 * lon + TAU * rings), 4.2, 0.9, GOLD, 0.55 * A);
-};
-const arcV = (a: V3, b: V3, lift: number, n = 18): V3[] => {
-  const d = clamp(a[0] * b[0] + a[1] * b[1] + a[2] * b[2], -1, 1), om = Math.acos(d), so = Math.sin(om) || 1;
-  return Array.from({ length: n + 1 }, (_, i) => { const s = i / n, ka = Math.sin((1 - s) * om) / so, kb = Math.sin(s * om) / so, h = 1 + lift * Math.sin(Math.PI * s); return [(a[0] * ka + b[0] * kb) * h, (a[1] * ka + b[1] * kb) * h, (a[2] * ka + b[2] * kb) * h] as V3; });
-};
-const globeArc = (c: Ctx, a: V3, b: V3, lift: number, g: { cx: number; cy: number; R: number; lon: number }, rgb: string, A: number, prog: number, w = 1) => {
-  if (A <= 0.004 || prog <= 0) return;
-  const pts = arcV(a, b, lift).map((v) => project(v, g.cx, g.cy, g.R, g.lon)), n = Math.max(1, Math.round(prog * (pts.length - 1)));
-  let run: P[] = [];
-  const flush = () => { if (run.length > 1) hairG(c, run, rgb, A, w); run = []; };
-  for (let i = 0; i <= n; i++) { const p = pts[i], r2 = (p.x - g.cx) ** 2 + (p.y - g.cy) ** 2; if (p.z > -0.02 || r2 > g.R * g.R * 1.03) run.push([p.x, p.y]); else flush(); }
-  flush();
-};
-
 // ================================================================ river of history
 const RIV = (() => { const r = rng(33); return Array.from({ length: 1500 }, () => { const u = r() + r() + r() - 1.5; return { v: clamp(u / 1.2, -1, 1), s: 70 + r() * 90, x0: r() * 2600, ph: r() * TAU, h: Math.floor(r() * 6), spark: r() < 0.12, sr: 40 + r() * 120 }; }); })();
 const EMB = (() => { const r = rng(44); return Array.from({ length: 150 }, () => ({ xw: 760 + r() * 1700, type: Math.floor(r() * 5), h: 26 + r() * r() * 110, d: r(), bl: 60 + r() * 150 })); })();
@@ -287,7 +155,7 @@ const COSMOS = (() => {
 const galRot = (x: number, y: number, t: number): P => { const a = 0.02 * t, xr = x * Math.cos(a) - y * Math.sin(a), yr = x * Math.sin(a) + y * Math.cos(a), ti = -0.15, yy = yr * 0.42; return [xr * Math.cos(ti) - yy * Math.sin(ti), xr * Math.sin(ti) + yy * Math.cos(ti)]; };
 
 // ================================================================ HUD copy: [start, end, text, row, write seconds]
-const LINES: [number, number, string, number, number][] = [
+const LINES: Line[] = [
   [CUE.from, 8.2, "A DISTANT VANTAGE POINT", 0, 1.5], [CUE.of, 11.2, "OF NO PARTICULAR INTEREST", 0, 1.3],
   [CUE.but, 14.3, "BUT FOR US", 0, 0.6], [CUE.diff, 14.3, "IT IS DIFFERENT", 1, 0.8],
   [CUE.consider, 16.8, "CONSIDER AGAIN", 0, 0.8], [CUE.dot, 16.8, "THAT DOT", 1, 0.5],
@@ -301,27 +169,15 @@ const LINES: [number, number, string, number, number][] = [
   [CUE.history, 70.3, "THE HISTORY OF OUR SPECIES", 0, 1.1], [CUE.livedThere, 71.9, "LIVED THERE", 0, 0.5], [CUE.mote - 0.05, 73.65, "ON A MOTE OF DUST", 0, 0.8],
   [CUE.suspended, 77.3, "SUSPENDED IN A SUNBEAM", 0, 2.1], [CUE.earth2, 81.4, "A VERY SMALL STAGE", 0, 2.8], [CUE.vast, 84.6, "IN A VAST COSMIC ARENA", 0, 2.4],
 ];
-const LABELS: [number, number, string][] = [[0.6, 14.3, "VOYAGER 1 - FEB 14 1990"], [CUE.consider, 21.6, "NARROW ANGLE CAMERA"], [22.3, 32.0, "HOME PLANET"], [CUE.aggregate, 41.7, "HUMAN HISTORY"], [CUE.hunter, 70.3, "THE CAST"], [CUE.livedThere, 84.6, "EARTH - FROM 6 BILLION KM"]];
-const fmt = (n: number) => Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+const LABELS: Label[] = [[0.6, 14.3, "VOYAGER 1 - FEB 14 1990"], [CUE.consider, 21.6, "NARROW ANGLE CAMERA"], [22.3, 32.0, "HOME PLANET"], [CUE.aggregate, 41.7, "HUMAN HISTORY"], [CUE.hunter, 70.3, "THE CAST"], [CUE.livedThere, 84.6, "EARTH - FROM 6 BILLION KM"]];
 
 // ================================================================ the frame
 const draw = (ctx: Ctx, frame: number, env: Env) => {
-  const t = frame / FPS, sc = env.scale;
-  const [tr, tg, tb] = tint(t);
-  ctx.setTransform(sc, 0, 0, sc, 0, 0); ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
-  const bg = ctx.createRadialGradient(CX, CY, 40, CX, CY, W * 0.62); bg.addColorStop(0, `rgb(${tr * 1.7 | 0},${tg * 1.7 | 0},${tb * 1.7 | 0})`); bg.addColorStop(1, `rgb(${tr * 0.35 | 0},${tg * 0.35 | 0},${tb * 0.35 | 0})`);
-  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-
-  const AL = layer(env, "art"), c = AL.ctx; c.globalCompositeOperation = "lighter"; c.lineCap = "round"; c.lineJoin = "round";
-  const tags: { x: number; y: number; s: string; a: number; p: number; col?: string }[] = [];
-  const tag = (x: number, y: number, dx: number, dy: number, s: string, a: number, p: number, rgb = PALE, tc = PALET) => {
-    if (a <= 0.01) return; const e: P = [x + dx, y + dy], f: P = [e[0] + (dx >= 0 ? 26 : -26), e[1]];
-    hair(c, [[x + Math.sign(dx) * 6, y + Math.sign(dy) * 6], e, f], rgb, 0.6 * a, 1, clamp(p * 2));
-    tags.push({ x: f[0] + (dx >= 0 ? 8 : -8 - textWidth(s, 15)), y: f[1] - 7, s, a, p: clamp(p * 1.4 - 0.3), col: tc });
-  };
+  const t = frame / FPS;
+  const f = beginFrame(ctx, env, frame, tint(t)), c = f.c, tag = f.tag;
 
   const starA = 1 - 0.45 * win(t, 22.6, 33, 1, 1) - 0.4 * win(t, 32, 59, 1, 1) - 0.5 * win(t, 58.6, 70.5, 1, 1);
-  drawStars(c, t, starA * ramp(t, 0, 2));
+  drawStars(c, STARS, CAM, t, starA * ramp(t, 0, 2));
 
   // ---------------------------------------------------------------- 0-17: Voyager, Sun, orbits, lock-on
   if (t < 17.5) {
@@ -355,8 +211,7 @@ const draw = (ctx: Ctx, frame: number, env: Env) => {
     // the reticle locks on
     if (t > CUE.but) {
       const q = ease(ramp(t, CUE.but, 1.1)), rr = 26 + 160 * (1 - q), ra = ramp(t, CUE.but, 0.3) * (1 - ramp(t, 16.6, 0.5)), rot = 0.35 * t;
-      for (let s = 0; s < 3; s++) hairG(c, ellipse(e[0], e[1], rr, rr, 0, 24, rot + (s * TAU) / 3, rot + (s * TAU) / 3 + 1.6), PALE, 0.8 * ra, 1.2);
-      for (let s = 0; s < 12; s++) { const a = -rot * 0.6 + (s / 12) * TAU; hair(c, [[e[0] + Math.cos(a) * (rr + 6), e[1] + Math.sin(a) * (rr + 6)], [e[0] + Math.cos(a) * (rr + 12), e[1] + Math.sin(a) * (rr + 12)]], PALE, 0.6 * ra, 1); }
+      reticle(c, e[0], e[1], rr, rot, PALE, ra);
     }
     if (t < CUE.onit) { const warm = win(t, CUE.us, 21.9, 0.4, 0.3); glow(c, e[0], e[1], 12 + 16 * blue + 16 * warm, blue > 0 ? PALE : AMBER, (0.45 + 0.3 * warm) * eA); dot(c, e[0], e[1], 2 + 0.4 * blue, blue > 0.5 ? (warm > 0.5 ? "255,236,210" : "215,235,255") : WARM, eA); }
   }
@@ -395,7 +250,7 @@ const draw = (ctx: Ctx, frame: number, env: Env) => {
     return { cx, cy, R, lon: lonAt(t) };
   })();
   if (t > CUE.onit && t < 39.5) {
-    drawGlobe(c, G.cx, G.cy, G.R, G.lon, 1, ramp(t, 23, 1.5));
+    drawGlobe(c, FIB, G.cx, G.cy, G.R, G.lon, 1, ramp(t, 23, 1.5));
     const aA = 1 - ramp(t, CUE.lived, 0.8);
     const p0 = project(P0, G.cx, G.cy, G.R, G.lon);
     if (t > CUE.love - 0.1 && aA > 0) {
@@ -470,10 +325,9 @@ const draw = (ctx: Ctx, frame: number, env: Env) => {
   // ---------------------------------------------------------------- 41.9-59: the cast, in pairs
   const pairA = (a: number, b: number) => win(t, a, b, 0.35, 0.6);
   const PC: P = [1150, 520];
-  const trail = (f: (u: number) => P, u: number, rgb: string, A: number, n = 26, dt = 0.03) => { const pts: P[] = []; for (let i = n; i >= 0; i--) pts.push(f(Math.max(0, u - i * dt))); hairG(c, pts, rgb, 0.55 * A, 1.2); const h = pts[pts.length - 1]; glow(c, h[0], h[1], 20, rgb, 0.6 * A); dot(c, h[0], h[1], 2.6, "255,250,240", A); return h; };
   if (t > CUE.hunter - 0.1 && t < 44.8) {
     const A = pairA(CUE.hunter, 44.8), u = t - CUE.hunter, dx = -50 * u;
-    trail((w) => [PC[0] - 170 + dx + 150 * Math.sin(w * 2.6) + 60 * Math.sin(w * 7.1), PC[1] - 40 + 60 * Math.sin(w * 3.3 + 1)], u, AMBER, A, 30, 0.025);
+    trail(c, (w) => [PC[0] - 170 + dx + 150 * Math.sin(w * 2.6) + 60 * Math.sin(w * 7.1), PC[1] - 40 + 60 * Math.sin(w * 3.3 + 1)], u, AMBER, A, 30, 0.025);
     const fp: P = [PC[0] + 170 + dx + 30 * Math.sin(u * 0.9), PC[1] + 30 + 20 * Math.sin(u * 1.3 + 0.5)];
     glow(c, fp[0], fp[1], 20, GREEN, 0.5 * A); dot(c, fp[0], fp[1], 2.6, "220,255,230", A);
     const r = rng(301); for (let i = 0; i < 34; i++) { const ox = (r() - 0.5) * 260, oy = (r() - 0.5) * 170, m = 0.25 + r() * 1.9, q = ease(ramp(u, m, 0.5)); if (q >= 1) continue; dot(c, lerp(fp[0] + ox, fp[0], q), lerp(fp[1] + oy, fp[1], q), 1.3, GREEN, A * 0.7 * (1 - q * 0.6)); }
@@ -514,7 +368,7 @@ const draw = (ctx: Ctx, frame: number, env: Env) => {
   if (t > CUE.couple - 0.1 && t < 53.9) {
     const A = pairA(CUE.couple, 53.9), u = t - CUE.couple, ctr: P = [PC[0] - 30 * u, PC[1]];
     const at = (s: number, sgn: number) => (w: number): P => { const rr = 230 * (1 - ease(clamp(w / 1.7))) + 10, ph = w * 3.3 + (sgn > 0 ? 0 : Math.PI); return [ctr[0] + Math.cos(ph) * rr, ctr[1] + Math.sin(ph) * rr * 0.55]; };
-    trail(at(0, 1), u, PINK, A, 34, 0.035); trail(at(0, -1), u, AMBER, A, 34, 0.035);
+    trail(c, at(0, 1), u, PINK, A, 34, 0.035); trail(c, at(0, -1), u, AMBER, A, 34, 0.035);
     const m = ramp(t, CUE.love2, 0.4); glow(c, ctr[0], ctr[1], 70, "255,120,170", 0.5 * A * m);
     const q = ramp(t, CUE.love2, 1.6); if (q > 0 && q < 1) beads(c, ellipse(ctr[0], ctr[1], 20 + 300 * easeOut(q), (20 + 300 * easeOut(q)) * 0.55, 0, 150), 5, 1.1, PINK, 0.7 * (1 - q) * A);
   }
@@ -598,7 +452,7 @@ const draw = (ctx: Ctx, frame: number, env: Env) => {
     if (sgA > 0) { const sc0 = Z([D2[0], D2[1] + 44]), rx = 110 * zoom, ry = 18 * zoom; beads(c, ellipse(sc0[0], sc0[1], rx, ry, 0, 90), Math.max(1.5, 4 * zoom), 1.1, GOLD, 0.85 * sgA, easeOut(ramp(t, CUE.stage, 0.9))); beads(c, ellipse(sc0[0], sc0[1] + 10 * zoom, rx, ry, 0, 90, 0, Math.PI), Math.max(1.5, 5 * zoom), 0.9, GOLD, 0.4 * sgA, easeOut(ramp(t, CUE.stage + 0.3, 0.9))); glow(c, sc0[0], sc0[1], rx * 1.1, WARM, 0.12 * sgA); for (let i = 0; i < 9; i++) { const a = Math.PI * (0.15 + (0.7 * i) / 8), fp: P = [sc0[0] + Math.cos(a) * rx, sc0[1] + Math.sin(a) * ry]; dot(c, fp[0], fp[1], 1.6, "255,230,190", sgA * ramp(t, CUE.stage + 0.5 + i * 0.05, 0.2)); } }
     // the globe, then the mote that is Earth
     const gA = ramp(t, 69.9, 0.6) * (1 - ramp(t, 83.4, 0.8));
-    drawGlobe(c, gx, gy, R * Math.max(zoom, 0.3), lonAt(t), gA, 0);
+    drawGlobe(c, FIB, gx, gy, R * Math.max(zoom, 0.3), lonAt(t), gA, 0);
     if (R < 7) { const e = Z([gx, gy]); glow(c, e[0], e[1], 16 + 20 * bA, PALE, 0.4 * gA); }
   }
 
@@ -626,50 +480,18 @@ const draw = (ctx: Ctx, frame: number, env: Env) => {
     }
   }
 
-  // ================================================================ post: bloom with halftone, bokeh, vignette, grain
-  const DW = Math.round(W * sc), DH = Math.round(H * sc);
-  const halves = [1, 2, 3, 4].map((k) => cached(env, `half${k}`, () => env.canvas(Math.max(1, DW >> k), Math.max(1, DH >> k))));
-  let src: CanvasImageSource = AL.canvas as CanvasImageSource;
-  for (const L of halves) { const lc = L.ctx; lc.setTransform(1, 0, 0, 1, 0, 0); lc.globalCompositeOperation = "copy"; lc.imageSmoothingEnabled = true; lc.drawImage(src, 0, 0, L.canvas.width, L.canvas.height); src = L.canvas as CanvasImageSource; }
-  const GL = layer(env, "glowhalf"), gc = GL.ctx; gc.setTransform(1, 0, 0, 1, 0, 0); gc.globalCompositeOperation = "lighter"; gc.imageSmoothingEnabled = true;
-  [[1, 0.5], [2, 0.6], [3, 0.7]].forEach(([k, a]) => { gc.globalAlpha = a; gc.drawImage(halves[k].canvas as CanvasImageSource, 0, 0, DW, DH); });
-  gc.globalAlpha = 1; gc.globalCompositeOperation = "destination-in"; gc.fillStyle = gc.createPattern(cached(env, "halftone", () => { const L = env.canvas(Math.round(5 * sc), Math.round(5 * sc)), h = L.ctx; h.fillStyle = "rgba(255,255,255,0.55)"; h.fillRect(0, 0, 5 * sc, 5 * sc); h.fillStyle = "#fff"; h.beginPath(); h.arc(2.5 * sc, 2.5 * sc, 1.25 * sc, 0, TAU); h.fill(); return L; }).canvas as CanvasImageSource, "repeat")!; gc.fillRect(0, 0, DW, DH);
-  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = "lighter"; ctx.drawImage(AL.canvas as CanvasImageSource, 0, 0); ctx.drawImage(GL.canvas as CanvasImageSource, 0, 0); ctx.restore();
-
-  // foreground bokeh: out-of-focus discs drifting between us and the scene
-  ctx.save(); ctx.globalCompositeOperation = "lighter";
-  { const r = rng(801); for (let i = 0; i < 16; i++) { const bx = r() * W + 70 * Math.sin(t * (0.03 + r() * 0.04) + r() * 6), by = BAR + r() * (H - 2 * BAR) + 40 * Math.sin(t * (0.025 + r() * 0.03) + r() * 6), rr = 26 + r() * 80, a = (0.025 + r() * 0.04) * ramp(t, 1, 2); const tc = `${Math.min(255, tr * 9 + 60) | 0},${Math.min(255, tg * 9 + 60) | 0},${Math.min(255, tb * 7 + 70) | 0}`; const gg = ctx.createRadialGradient(bx, by, 0, bx, by, rr); gg.addColorStop(0, col(tc, a * 0.7)); gg.addColorStop(0.82, col(tc, a)); gg.addColorStop(0.92, col(tc, a * 1.4)); gg.addColorStop(1, col(tc, 0)); ctx.fillStyle = gg; ctx.fillRect(bx - rr, by - rr, rr * 2, rr * 2); } }
-  ctx.restore();
-  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.drawImage(cached(env, "vignette", () => { const L = env.canvas(DW, DH), v = L.ctx; v.setTransform(sc, 0, 0, sc, 0, 0); const gr = v.createRadialGradient(CX, CY, H * 0.35, CX, CY, W * 0.62); gr.addColorStop(0, "rgba(0,0,0,0)"); gr.addColorStop(1, "rgba(0,0,0,0.72)"); v.fillStyle = gr; v.fillRect(0, 0, W, H); return L; }).canvas as CanvasImageSource, 0, 0);
-  { const gr = rng(frame * 13 + 1), pat = ctx.createPattern(grain(env).canvas as CanvasImageSource, "repeat")!; ctx.translate(Math.floor(gr() * 256), Math.floor(gr() * 256)); ctx.globalAlpha = 0.55; ctx.fillStyle = pat; ctx.fillRect(-256, -256, DW + 512, DH + 512); }
-  ctx.restore();
-
-  // ================================================================ HUD lettering (own layer, then glowed)
-  const TL = layer(env, "txt"), g = new Gfx(TL.ctx, env, frame, FLAT), words: (() => void)[] = [];
-  const say = (s: string, x: number, y: number, o: Parameters<typeof text>[4]) => { words.push(() => text(g, s, x, y, o)); };
-  const fit = (s: string, cap: number, max: number) => Math.min(cap, (cap * max) / Math.max(1, textWidth(s, cap)));
-  let hudA = 0;
-  for (const [a, b, s] of LABELS) if (t > a - 0.05 && t < b + 0.3) { const o = 1 - ramp(t, b, 0.3); hudA = Math.max(hudA, o); say(s, 120, 204, { cap: 15, color: DIMT, progress: ramp(t, a, 0.7), opacity: o, w: 1.6 }); }
-  for (const [a, b, s, row, dur] of LINES) if (t > a - 0.05 && t < b + 0.3) { const o = 1 - ramp(t, b, 0.3); hudA = Math.max(hudA, o); say(s, 120, row ? 298 : 238, { cap: fit(s, 40, 740), color: TXT, progress: ramp(t, a, dur), opacity: o, w: 2.6 }); }
-  if (t > CUE.human + 0.1 && t < 32.3) { const o = 1 - ramp(t, 32.0, 0.3), n = 117e9 * ease(ramp(t, CUE.human + 0.2, 1.8)); say("HUMANS EVER BORN (EST.)", 120, 312, { cap: 14, color: DIMT, progress: ramp(t, CUE.human + 0.2, 0.6), opacity: o, w: 1.5 }); say(fmt(n), 120, 338, { cap: 34, color: GOLDT, opacity: o * ramp(t, CUE.human + 0.2, 0.2), w: 3 }); }
-  // HERE / HOME / US
-  ([[CUE.here, "HERE", 400, TXT], [CUE.home, "HOME", 500, TXT], [CUE.us, "US", 600, GOLDT]] as const).forEach(([a, s, y, cl]) => { if (t > a - 0.05 && t < 22.3) say(s, 160, y, { cap: 70, color: cl, progress: ramp(t, a, 0.45), opacity: 1 - ramp(t, 21.8, 0.4), w: 4.5 }); });
-  for (const tg2 of tags) say(tg2.s, tg2.x, tg2.y, { cap: 15, color: tg2.col, progress: tg2.p, opacity: tg2.a, w: 1.6 });
-  if (t > CUE.title - 0.05) { const o = 1 - ramp(t, 93.2, 1.4); say("PALE BLUE DOT", CX, 780, { cap: 52, color: TXT, align: "center", progress: ramp(t, CUE.title, 1.6), opacity: o, w: 3.4 }); say("CARL SAGAN", CX, 860, { cap: 17, color: DIMT, align: "center", progress: ramp(t, 89.0, 0.9), opacity: o, w: 1.7 }); }
-  // soft dark band behind the HUD over busy art
-  if (hudA > 0) { const gr = ctx.createLinearGradient(0, 0, 980, 0); gr.addColorStop(0, `rgba(4,5,12,${0.55 * hudA})`); gr.addColorStop(1, "rgba(4,5,12,0)"); ctx.fillStyle = gr; ctx.fillRect(0, BAR, 980, 260); }
-  g.group("plain", () => words.forEach((f) => f()));
-  const T2 = cached(env, "txt2", () => env.canvas(Math.max(1, DW >> 2), Math.max(1, DH >> 2)));
-  { const lc = T2.ctx; lc.setTransform(1, 0, 0, 1, 0, 0); lc.globalCompositeOperation = "copy"; lc.imageSmoothingEnabled = true; lc.drawImage(TL.canvas as CanvasImageSource, 0, 0, T2.canvas.width, T2.canvas.height); }
-  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(TL.canvas as CanvasImageSource, 0, 0); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = 0.5; ctx.drawImage(T2.canvas as CanvasImageSource, 0, 0, DW, DH); ctx.restore();
-
-  // ================================================================ letterbox and fades (never a hard black cut)
-  ctx.save(); ctx.setTransform(sc, 0, 0, sc, 0, 0); ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
-  const black = Math.max(1 - ease(ramp(t, 0, 2.2)), ease(ramp(t, 93.3, 1.75)));
-  if (black > 0) { ctx.fillStyle = `rgba(0,0,0,${black.toFixed(3)})`; ctx.fillRect(0, 0, W, H); }
-  ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, BAR); ctx.fillRect(0, H - BAR, W, BAR);
-  ctx.restore();
+  endFrame(ctx, env, frame, t, f, {
+    black: fades(t, CUE.end),
+    hud: (h) => {
+      const { say } = h, hudA = hudTables(h, LABELS, LINES);
+      if (t > CUE.human + 0.1 && t < 32.3) { const o = 1 - ramp(t, 32.0, 0.3), n = 117e9 * ease(ramp(t, CUE.human + 0.2, 1.8)); say("HUMANS EVER BORN (EST.)", 120, 312, { cap: 14, color: DIMT, progress: ramp(t, CUE.human + 0.2, 0.6), opacity: o, w: 1.5 }); say(fmt(n), 120, 338, { cap: 34, color: GOLDT, opacity: o * ramp(t, CUE.human + 0.2, 0.2), w: 3 }); }
+      // HERE / HOME / US
+      ([[CUE.here, "HERE", 400, TXT], [CUE.home, "HOME", 500, TXT], [CUE.us, "US", 600, GOLDT]] as const).forEach(([a, s, y, cl]) => { if (t > a - 0.05 && t < 22.3) say(s, 160, y, { cap: 70, color: cl, progress: ramp(t, a, 0.45), opacity: 1 - ramp(t, 21.8, 0.4), w: 4.5 }); });
+      h.tags();
+      if (t > CUE.title - 0.05) { const o = 1 - ramp(t, 93.2, 1.4); say("PALE BLUE DOT", CX, 780, { cap: 52, color: TXT, align: "center", progress: ramp(t, CUE.title, 1.6), opacity: o, w: 3.4 }); say("CARL SAGAN", CX, 860, { cap: 17, color: DIMT, align: "center", progress: ramp(t, 89.0, 0.9), opacity: o, w: 1.7 }); }
+      return hudA;
+    },
+  });
 };
 
 export const paleDot: Film = {

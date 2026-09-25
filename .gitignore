@@ -2,3 +2,4 @@ node_modules/
 dist/
 .tmp/
 *-silent.mp4
+out/check_*

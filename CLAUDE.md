@@ -30,6 +30,14 @@ entirely in code (Canvas 2D, TypeScript, anidoodle engine). No AI images, no sto
 5. Fix, then `node tools/render.mjs <name> --out out/<name>-silent.mp4`, mux audio
    (`-c:v libx264 -crf 19 -c:a aac -b:a 192k -movflags +faststart`), keep < 30 MB (raise crf if not), contact sheet, commit, push, send.
 
+## Cinematic "data space" films (screenplay → any coder)
+A second, separate style lives in `orbital-template/cinema/` (start at `cinema/README.md`). It does NOT use the
+spaceStyle look: draw only with `src/canvas-core/cinemaKit.ts` (never restyle it; if you change it, `paleDot` must stay
+pixel-identical). Planning: `cinema/PLANNER_GUIDE.md` + `cinema/SCREENPLAY_FORMAT.md` (timing via `python3 tools/align.py`,
+needs `pip install pocketsphinx`). Coding: `cinema/CODER_RULES.md`, scaffold with `node tools/new-film.mjs <name>`,
+deliver with `node tools/finish.mjs <name>`, gate with `node tools/check.mjs <name>` (must print PASSED).
+Worked example: `cinema/screenplays/paleDot.md` + `src/canvas-core/paleDot.ts`.
+
 ## Known pitfalls
 - `back()` easing can return −1e-14 at t=0 → guard every radius/size with `Math.max(0, …)` or an early return (canvas throws on negative arc radius and the render dies mid-way).
 - Dark full-screen fills during transitions must fade (no black flashes). Put a soft dark band behind text over busy art.
