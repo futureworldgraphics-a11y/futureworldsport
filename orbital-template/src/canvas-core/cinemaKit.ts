@@ -1,6 +1,7 @@
 import { Gfx, rng, type Ctx, type Env, type P } from "./core";
 import { clamp, lerp } from "./gallery";
 import { W, H, FLAT, ease, ramp, cached, grain, layer, text, textWidth, glow } from "./spaceStyle";
+import { pixelate, pixelText, pixelWidth } from "./pixelKit";
 
 // CINEMA KIT · the shared look for "data space" films (reference build: paleDot.ts).
 // Every film in this style draws ONLY with what is exported here, so any coder given the same
@@ -216,7 +217,7 @@ export const globeArc = (c: Ctx, a: V3, b: V3, lift: number, g: GlobeView, rgb: 
 
 // ================================================================ frame lifecycle
 export type Frame = { c: Ctx; AL: { canvas: unknown; ctx: Ctx }; tint: RGB3; tags: Tag[]; tag: (x: number, y: number, dx: number, dy: number, s: string, a: number, p: number, rgb?: string, tc?: string) => void };
-type Tag = { x: number; y: number; s: string; a: number; p: number; col?: string };
+type Tag = { fx: number; left: boolean; y: number; s: string; a: number; p: number; col?: string };
 /** paints the background wash and returns the cleared additive art layer + the tag helper */
 export const beginFrame = (ctx: Ctx, env: Env, frame: number, tint: RGB3): Frame => {
   const sc = env.scale, [tr, tg, tb] = tint;
@@ -229,7 +230,7 @@ export const beginFrame = (ctx: Ctx, env: Env, frame: number, tint: RGB3): Frame
   const tag = (x: number, y: number, dx: number, dy: number, s: string, a: number, p: number, rgb = PALE, tc = PALET) => {
     if (a <= 0.01) return; const e: P = [x + dx, y + dy], f: P = [e[0] + (dx >= 0 ? 26 : -26), e[1]];
     hair(c, [[x + Math.sign(dx) * 6, y + Math.sign(dy) * 6], e, f], rgb, 0.6 * a, 1, clamp(p * 2));
-    tags.push({ x: f[0] + (dx >= 0 ? 8 : -8 - textWidth(s, 15)), y: f[1] - 7, s, a, p: clamp(p * 1.4 - 0.3), col: tc });
+    tags.push({ fx: f[0], left: dx < 0, y: f[1] - 7, s, a, p: clamp(p * 1.4 - 0.3), col: tc });
   };
   return { c, AL, tint, tags, tag };
 };
@@ -255,7 +256,8 @@ const audit = (s: string, x: number, y: number, o: Parameters<typeof text>[4]) =
   const w = textWidth(s, o.cap), x0 = o.align === "center" ? x - w / 2 : o.align === "right" ? x - w : x; A.push({ s, x0, y0: y, x1: x0 + w, y1: y + o.cap });
 };
 
-export type EndOpts = { hud?: (h: Hud) => number; black?: number; bokehSeed?: number };
+/** pixel: P > 1 renders the frame as pixel art (P screen px per art pixel, see pixelKit.ts) */
+export type EndOpts = { hud?: (h: Hud) => number; black?: number; bokehSeed?: number; pixel?: number };
 /** post chain + lettering + fades + letterbox. hud() queues lettering via h.say and returns
  *  the visibility (0..1) of the top-left HUD, which darkens a soft band behind it */
 export const endFrame = (ctx: Ctx, env: Env, frame: number, t: number, f: Frame, o: EndOpts = {}) => {
@@ -267,7 +269,7 @@ export const endFrame = (ctx: Ctx, env: Env, frame: number, t: number, f: Frame,
   for (const L of halves) { const lc = L.ctx; lc.setTransform(1, 0, 0, 1, 0, 0); lc.globalCompositeOperation = "copy"; lc.imageSmoothingEnabled = true; lc.drawImage(src, 0, 0, L.canvas.width, L.canvas.height); src = L.canvas as CanvasImageSource; }
   const GL = layer(env, "glowhalf"), gc = GL.ctx; gc.setTransform(1, 0, 0, 1, 0, 0); gc.globalCompositeOperation = "lighter"; gc.imageSmoothingEnabled = true;
   [[1, 0.5], [2, 0.6], [3, 0.7]].forEach(([k, a]) => { gc.globalAlpha = a; gc.drawImage(halves[k].canvas as CanvasImageSource, 0, 0, DW, DH); });
-  gc.globalAlpha = 1; gc.globalCompositeOperation = "destination-in"; gc.fillStyle = gc.createPattern(cached(env, "halftone", () => { const L = env.canvas(Math.round(5 * sc), Math.round(5 * sc)), h = L.ctx; h.fillStyle = "rgba(255,255,255,0.55)"; h.fillRect(0, 0, 5 * sc, 5 * sc); h.fillStyle = "#fff"; h.beginPath(); h.arc(2.5 * sc, 2.5 * sc, 1.25 * sc, 0, TAU); h.fill(); return L; }).canvas as CanvasImageSource, "repeat")!; gc.fillRect(0, 0, DW, DH);
+  if (!o.pixel) { gc.globalAlpha = 1; gc.globalCompositeOperation = "destination-in"; gc.fillStyle = gc.createPattern(cached(env, "halftone", () => { const L = env.canvas(Math.round(5 * sc), Math.round(5 * sc)), h = L.ctx; h.fillStyle = "rgba(255,255,255,0.55)"; h.fillRect(0, 0, 5 * sc, 5 * sc); h.fillStyle = "#fff"; h.beginPath(); h.arc(2.5 * sc, 2.5 * sc, 1.25 * sc, 0, TAU); h.fill(); return L; }).canvas as CanvasImageSource, "repeat")!; gc.fillRect(0, 0, DW, DH); }
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = "lighter"; ctx.drawImage(AL.canvas as CanvasImageSource, 0, 0); ctx.drawImage(GL.canvas as CanvasImageSource, 0, 0); ctx.restore();
 
   // foreground bokeh: out-of-focus discs drifting between us and the scene, tinted by the wash
@@ -277,22 +279,36 @@ export const endFrame = (ctx: Ctx, env: Env, frame: number, t: number, f: Frame,
   // vignette + moving grain
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(cached(env, "vignette", () => { const L = env.canvas(DW, DH), v = L.ctx; v.setTransform(sc, 0, 0, sc, 0, 0); const gr = v.createRadialGradient(CX, CY, H * 0.35, CX, CY, W * 0.62); gr.addColorStop(0, "rgba(0,0,0,0)"); gr.addColorStop(1, "rgba(0,0,0,0.72)"); v.fillStyle = gr; v.fillRect(0, 0, W, H); return L; }).canvas as CanvasImageSource, 0, 0);
-  { const gr = rng(frame * 13 + 1), pat = ctx.createPattern(grain(env).canvas as CanvasImageSource, "repeat")!; ctx.translate(Math.floor(gr() * 256), Math.floor(gr() * 256)); ctx.globalAlpha = 0.55; ctx.fillStyle = pat; ctx.fillRect(-256, -256, DW + 512, DH + 512); }
+  if (!o.pixel) { const gr = rng(frame * 13 + 1), pat = ctx.createPattern(grain(env).canvas as CanvasImageSource, "repeat")!; ctx.translate(Math.floor(gr() * 256), Math.floor(gr() * 256)); ctx.globalAlpha = 0.55; ctx.fillStyle = pat; ctx.fillRect(-256, -256, DW + 512, DH + 512); }
   ctx.restore();
 
-  // lettering: own layer, then a soft glow of itself
-  const TL = layer(env, "txt"), g = new Gfx(TL.ctx, env, frame, FLAT), words: (() => void)[] = [];
-  const say: Say = (s, x, y, op) => { audit(s, x, y, op); words.push(() => text(g, s, x, y, op)); };
-  const fit = (s: string, cap: number, max: number) => Math.min(cap, (cap * max) / Math.max(1, textWidth(s, cap)));
-  let tagged = false;
-  const tags = () => { if (tagged) return; tagged = true; for (const tg2 of f.tags) say(tg2.s, tg2.x, tg2.y, { cap: 15, color: tg2.col, progress: tg2.p, opacity: tg2.a, w: 1.6 }); };
-  const hudA = o.hud ? o.hud({ say, t, fit, tags }) : 0;
-  tags();
-  if (hudA > 0) { const gr = ctx.createLinearGradient(0, 0, 980, 0); gr.addColorStop(0, `rgba(4,5,12,${0.55 * hudA})`); gr.addColorStop(1, "rgba(4,5,12,0)"); ctx.fillStyle = gr; ctx.fillRect(0, BAR, 980, 260); }
-  g.group("plain", () => words.forEach((fn) => fn()));
-  const T2 = cached(env, "txt2", () => env.canvas(Math.max(1, DW >> 2), Math.max(1, DH >> 2)));
-  { const lc = T2.ctx; lc.setTransform(1, 0, 0, 1, 0, 0); lc.globalCompositeOperation = "copy"; lc.imageSmoothingEnabled = true; lc.drawImage(TL.canvas as CanvasImageSource, 0, 0, T2.canvas.width, T2.canvas.height); }
-  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(TL.canvas as CanvasImageSource, 0, 0); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = 0.5; ctx.drawImage(T2.canvas as CanvasImageSource, 0, 0, DW, DH); ctx.restore();
+  if (o.pixel) {
+    // pixel art: HUD band first (so it is dithered with the art), then pixelate, then pixel-font lettering on top
+    const jobs: (() => void)[] = [];
+    const say: Say = (s, x, y, op) => { const w = pixelWidth(s, op.cap), x0 = op.align === "center" ? x - w / 2 : op.align === "right" ? x - w : x; const A = (globalThis as { __AUDIT__?: unknown[] }).__AUDIT__; if (Array.isArray(A) && (op.opacity ?? 1) > 0.01 && (op.progress ?? 1) > 0) A.push({ s, x0, y0: y, x1: x0 + w, y1: y + 7 * Math.max(3, Math.round(op.cap / 9.5)) }); jobs.push(() => pixelText(ctx, env, s, x, y, { cap: op.cap, color: op.color, progress: op.progress, opacity: op.opacity, align: op.align })); };
+    const fit = (s: string, cap: number, max: number) => { let c = cap; while (c > 12 && pixelWidth(s, c) > max) c -= 1; return c; };
+    let tagged = false;
+    const tags = () => { if (tagged) return; tagged = true; for (const tg2 of f.tags) say(tg2.s, tg2.left ? tg2.fx - 8 - pixelWidth(tg2.s, 15) : tg2.fx + 8, tg2.y, { cap: 15, color: tg2.col, progress: tg2.p, opacity: tg2.a }); };
+    const hudA = o.hud ? o.hud({ say, t, fit, tags }) : 0;
+    tags();
+    if (hudA > 0) { ctx.save(); ctx.setTransform(sc, 0, 0, sc, 0, 0); const gr = ctx.createLinearGradient(0, 0, 980, 0); gr.addColorStop(0, `rgba(4,5,12,${0.55 * hudA})`); gr.addColorStop(1, "rgba(4,5,12,0)"); ctx.fillStyle = gr; ctx.fillRect(0, BAR, 980, 260); ctx.restore(); }
+    pixelate(ctx, env, o.pixel);
+    jobs.forEach((fn) => fn());
+  } else {
+    // lettering: own layer, then a soft glow of itself
+    const TL = layer(env, "txt"), g = new Gfx(TL.ctx, env, frame, FLAT), words: (() => void)[] = [];
+    const say: Say = (s, x, y, op) => { audit(s, x, y, op); words.push(() => text(g, s, x, y, op)); };
+    const fit = (s: string, cap: number, max: number) => Math.min(cap, (cap * max) / Math.max(1, textWidth(s, cap)));
+    let tagged = false;
+    const tags = () => { if (tagged) return; tagged = true; for (const tg2 of f.tags) say(tg2.s, tg2.left ? tg2.fx - 8 - textWidth(tg2.s, 15) : tg2.fx + 8, tg2.y, { cap: 15, color: tg2.col, progress: tg2.p, opacity: tg2.a, w: 1.6 }); };
+    const hudA = o.hud ? o.hud({ say, t, fit, tags }) : 0;
+    tags();
+    if (hudA > 0) { const gr = ctx.createLinearGradient(0, 0, 980, 0); gr.addColorStop(0, `rgba(4,5,12,${0.55 * hudA})`); gr.addColorStop(1, "rgba(4,5,12,0)"); ctx.fillStyle = gr; ctx.fillRect(0, BAR, 980, 260); }
+    g.group("plain", () => words.forEach((fn) => fn()));
+    const T2 = cached(env, "txt2", () => env.canvas(Math.max(1, DW >> 2), Math.max(1, DH >> 2)));
+    { const lc = T2.ctx; lc.setTransform(1, 0, 0, 1, 0, 0); lc.globalCompositeOperation = "copy"; lc.imageSmoothingEnabled = true; lc.drawImage(TL.canvas as CanvasImageSource, 0, 0, T2.canvas.width, T2.canvas.height); }
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(TL.canvas as CanvasImageSource, 0, 0); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = 0.5; ctx.drawImage(T2.canvas as CanvasImageSource, 0, 0, DW, DH); ctx.restore();
+  }
 
   // fades (never a hard black cut) and the 2.39:1 letterbox
   ctx.save(); ctx.setTransform(sc, 0, 0, sc, 0, 0); ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;

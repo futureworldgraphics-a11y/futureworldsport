@@ -64,6 +64,7 @@ row per beat. Every row should read as the same picture. Similarity ≥ 0.7 is t
 | wash | `makeTint(keys)` |
 | globe | `makeSphere(n, seed)`, `drawGlobe`, `project`, `globeArc`, `v3`, `norm`, `randLand`, `isLand`, `EARTH_BLOBS` |
 | frame | `beginFrame(ctx, env, frame, tint)` → `{ c, tag }`; `endFrame(ctx, env, frame, t, f, { black, hud })`; `fades(t, seconds)` |
+| pixel art | `endFrame(..., { pixel: 3 })` renders the same film as pixel art (640×360 art pixels, fixed palette, Bayer dither, 5×7 pixel font typing on with a cursor). Use it only when the screenplay header says `style | cinemaKit-pixel`. Palette and font: `pixelKit.ts` |
 | lettering | `hudTables(h, LABELS, LINES)`, `h.say(text, x, y, { cap, color, progress, opacity, w, align })`, `h.fit`, `h.tags()`, `fmt(n)` |
 
 ## Film file skeleton

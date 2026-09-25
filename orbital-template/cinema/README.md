@@ -45,6 +45,7 @@ references.
 | `cinema/refs/paleDot/` | its 40 reference stills |
 | `src/canvas-core/cinemaKit.ts` | the shared look |
 | `src/canvas-core/paleDot.ts` | reference build |
+| `src/canvas-core/pixelKit.ts`, `paleDotPixel.ts` | pixel-art finish of the same film (`endFrame({ pixel: 3 })`): same screenplay, different look |
 | `tools/align.py` | offline forced alignment (`pip install pocketsphinx`) |
 | `tools/screenplay.mjs` | screenplay parser (shared by the tools) |
 | `tools/new-film.mjs` | scaffold a film from its screenplay |

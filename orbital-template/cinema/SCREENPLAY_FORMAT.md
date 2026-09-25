@@ -26,7 +26,7 @@ parsed by the tools, so keep their exact shape.
 | fps | 30 |
 | seconds | 95.112 |                        ffprobe duration
 | frames | 2853 |                           floor(seconds * 30)
-| style | cinemaKit |
+| style | cinemaKit |                       cinemaKit (smooth light) or cinemaKit-pixel (same film as pixel art)
 ```
 
 ### `## 2. STORY`

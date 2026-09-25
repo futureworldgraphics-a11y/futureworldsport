@@ -37,6 +37,8 @@ pixel-identical). Planning: `cinema/PLANNER_GUIDE.md` + `cinema/SCREENPLAY_FORMA
 needs `pip install pocketsphinx`). Coding: `cinema/CODER_RULES.md`, scaffold with `node tools/new-film.mjs <name>`,
 deliver with `node tools/finish.mjs <name>`, gate with `node tools/check.mjs <name>` (must print PASSED).
 Worked example: `cinema/screenplays/paleDot.md` + `src/canvas-core/paleDot.ts`.
+Pixel-art variant of the same style: `endFrame(..., { pixel: 3 })` (`pixelKit.ts`: palette, Bayer dither, 5×7 pixel font);
+example `paleDotPixel.ts` renders the paleDot screenplay as pixel art.
 
 ## Known pitfalls
 - `back()` easing can return −1e-14 at t=0 → guard every radius/size with `Math.max(0, …)` or an early return (canvas throws on negative arc radius and the render dies mid-way).

@@ -172,7 +172,8 @@ const LINES: Line[] = [
 const LABELS: Label[] = [[0.6, 14.3, "VOYAGER 1 - FEB 14 1990"], [CUE.consider, 21.6, "NARROW ANGLE CAMERA"], [22.3, 32.0, "HOME PLANET"], [CUE.aggregate, 41.7, "HUMAN HISTORY"], [CUE.hunter, 70.3, "THE CAST"], [CUE.livedThere, 84.6, "EARTH - FROM 6 BILLION KM"]];
 
 // ================================================================ the frame
-const draw = (ctx: Ctx, frame: number, env: Env) => {
+/** the whole film; pixel > 1 renders it as pixel art (paleDotPixel) */
+export const paleDotDraw = (pixel = 0) => (ctx: Ctx, frame: number, env: Env) => {
   const t = frame / FPS;
   const f = beginFrame(ctx, env, frame, tint(t)), c = f.c, tag = f.tag;
 
@@ -481,6 +482,7 @@ const draw = (ctx: Ctx, frame: number, env: Env) => {
   }
 
   endFrame(ctx, env, frame, t, f, {
+    pixel,
     black: fades(t, CUE.end),
     hud: (h) => {
       const { say } = h, hudA = hudTables(h, LABELS, LINES);
@@ -497,5 +499,5 @@ const draw = (ctx: Ctx, frame: number, env: Env) => {
 export const paleDot: Film = {
   meta: { title: "paleDot", W, H, fps: FPS, bpm: 120, durationFrames: DURATION },
   assets: { images: {} },
-  shots: [{ id: "paleDot", start: 0, end: DURATION, draw }],
+  shots: [{ id: "paleDot", start: 0, end: DURATION, draw: paleDotDraw() }],
 };
