@@ -257,7 +257,7 @@ const audit = (s: string, x: number, y: number, o: Parameters<typeof text>[4]) =
 };
 
 /** pixel: P > 1 renders the frame as pixel art (P screen px per art pixel, see pixelKit.ts) */
-export type EndOpts = { hud?: (h: Hud) => number; black?: number; bokehSeed?: number; pixel?: number };
+export type EndOpts = { hud?: (h: Hud) => number; black?: number; bokehSeed?: number; pixel?: number; palette?: string[] };
 /** post chain + lettering + fades + letterbox. hud() queues lettering via h.say and returns
  *  the visibility (0..1) of the top-left HUD, which darkens a soft band behind it */
 export const endFrame = (ctx: Ctx, env: Env, frame: number, t: number, f: Frame, o: EndOpts = {}) => {
@@ -292,7 +292,7 @@ export const endFrame = (ctx: Ctx, env: Env, frame: number, t: number, f: Frame,
     const hudA = o.hud ? o.hud({ say, t, fit, tags }) : 0;
     tags();
     if (hudA > 0) { ctx.save(); ctx.setTransform(sc, 0, 0, sc, 0, 0); const gr = ctx.createLinearGradient(0, 0, 980, 0); gr.addColorStop(0, `rgba(4,5,12,${0.55 * hudA})`); gr.addColorStop(1, "rgba(4,5,12,0)"); ctx.fillStyle = gr; ctx.fillRect(0, BAR, 980, 260); ctx.restore(); }
-    pixelate(ctx, env, o.pixel);
+    pixelate(ctx, env, o.pixel, o.palette);
     jobs.forEach((fn) => fn());
   } else {
     // lettering: own layer, then a soft glow of itself

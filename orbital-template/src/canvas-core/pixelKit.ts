@@ -25,29 +25,30 @@ export const PIXEL_PALETTE = [
   // whites
   "#e8f3ff", "#ffffff",
 ];
-const PAL = PIXEL_PALETTE.map((h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]);
-let LUT: Uint8Array | null = null;
-/** 5-bit-per-channel colour -> nearest palette index (perceptually weighted distance) */
-const lut = () => {
-  if (LUT) return LUT;
-  LUT = new Uint8Array(32768);
+const hex3 = (h: string) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+const LUTS = new Map<string, { pal: number[][]; lut: Uint8Array }>();
+/** 5-bit-per-channel colour -> nearest palette index (perceptually weighted distance); one table per palette */
+const lutFor = (extra: string[]) => {
+  const key = extra.join(","); let e = LUTS.get(key); if (e) return e;
+  const pal = [...PIXEL_PALETTE, ...extra].map(hex3), lut = new Uint8Array(32768);
   for (let r = 0; r < 32; r++) for (let g = 0; g < 32; g++) for (let b = 0; b < 32; b++) {
     const R = r * 8 + 4, G = g * 8 + 4, B = b * 8 + 4; let best = 0, bd = 1e12;
-    for (let i = 0; i < PAL.length; i++) { const [pr, pg, pb] = PAL[i], rm = (R + pr) / 2, dr = R - pr, dg = G - pg, db = B - pb, d = (2 + rm / 256) * dr * dr + 4 * dg * dg + (2 + (255 - rm) / 256) * db * db; if (d < bd) { bd = d; best = i; } }
-    LUT[(r << 10) | (g << 5) | b] = best;
+    for (let i = 0; i < pal.length; i++) { const [pr, pg, pb] = pal[i], rm = (R + pr) / 2, dr = R - pr, dg = G - pg, db = B - pb, d = (2 + rm / 256) * dr * dr + 4 * dg * dg + (2 + (255 - rm) / 256) * db * db; if (d < bd) { bd = d; best = i; } }
+    lut[(r << 10) | (g << 5) | b] = best;
   }
-  return LUT;
+  e = { pal, lut }; LUTS.set(key, e); return e;
 };
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 
 /** reduce the whole canvas to pixel art in place: P screen px per art pixel */
-export const pixelate = (ctx: Ctx, env: Env, P: number, spread = 22, keep = 0.55) => {
+/** extra: more palette colours for this film (the base palette always stays) */
+export const pixelate = (ctx: Ctx, env: Env, P: number, extra: string[] = [], spread = 22, keep = 0.55) => {
   const DW = Math.round(env.W * env.scale), DH = Math.round(env.H * env.scale), pp = Math.max(1, Math.round(P * env.scale)), lw = Math.floor(DW / pp), lh = Math.floor(DH / pp);
   const key = `pix:${lw}x${lh}`;
   let st = env.cache.get(key) as { L: ReturnType<Env["canvas"]>; img: ImageData } | undefined;
   if (!st) { const L = env.canvas(lw, lh); st = { L, img: L.ctx.createImageData(lw, lh) }; env.cache.set(key, st); }
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
-  const src = ctx.getImageData(0, 0, lw * pp, lh * pp).data, out = st.img.data, T = lut(), n = pp * pp, rowW = lw * pp * 4;
+  const src = ctx.getImageData(0, 0, lw * pp, lh * pp).data, out = st.img.data, { pal: PAL, lut: T } = lutFor(extra), n = pp * pp, rowW = lw * pp * 4;
   for (let y = 0; y < lh; y++) for (let x = 0; x < lw; x++) {
     let sr = 0, sg = 0, sb = 0, mr = 0, mg = 0, mb = 0;
     for (let yy = 0; yy < pp; yy++) { let i = (y * pp + yy) * rowW + x * pp * 4; for (let xx = 0; xx < pp; xx++, i += 4) { const r = src[i], g = src[i + 1], b = src[i + 2]; sr += r; sg += g; sb += b; if (r + g + b > mr + mg + mb) { mr = r; mg = g; mb = b; } } }
