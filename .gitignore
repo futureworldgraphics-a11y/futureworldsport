@@ -1,3 +1,5 @@
 node_modules/
 dist/
 .tmp/
+orbital-template/out/*-silent.mp4
+orbital-template/out/cs/
