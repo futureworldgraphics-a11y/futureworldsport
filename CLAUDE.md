@@ -12,7 +12,9 @@ entirely in code (Canvas 2D, TypeScript, anidoodle engine). No AI images, no sto
   never over the subject. In house-style films: the top-left HUD via `h.say` (label line + main line, soft dark band behind).
   Equations are just typed text (e.g. "E = MC2").
 
-## HOUSE STYLE (locked, user's favourite): detailed native pixel art, cinematic, gently funny
+## HOUSE STYLE = "CANDLELIGHT PIXEL" (locked, user's favourite): detailed native pixel art, cinematic, gently funny
+When the user says "Candlelight Pixel" (or "candlelight style"), build EXACTLY this style — read `candlePix.ts` first
+(for structure only; never copy its scenes) and follow every rule in this section.
 Reference: `src/canvas-core/candlePix.ts` (first 30 s of The One Speed) + `out/chunk_candlePix.mp4`.
 - Draw pixel by pixel with `src/canvas-core/pixelArt.ts` at 480x270 art pixels, blown up 4x (textured planets, craters,
   night-side rim light, clustered nebulae, sparkle stars, Bayer dither only where tones meet). Never pixelate smooth art.
