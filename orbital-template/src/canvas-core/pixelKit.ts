@@ -311,3 +311,48 @@ export const person = (c: Ctx, x: number, y: number, sc: number, o: PersonOpts =
   if (hat === "hard") { rect(c, -3 + L, -19, 6, 2, "#ffc83a"); rect(c, -2 + L, -20, 4, 1, "#ffc83a"); px(c, -1 + L, -20, "#fff0b0"); }
   c.restore();
 };
+
+// ---------------------------------------------------------------- 5x7 pixel font: THE on-screen text of the pixel films
+// Uppercase (lowercase maps to it), digits, and . , : ; / ( ) & ? ! ' - + = % *  -- so equations can be typed directly.
+const F7: Record<string, string> = {
+  A: "01110 10001 10001 11111 10001 10001 10001", B: "11110 10001 10001 11110 10001 10001 11110", C: "01110 10001 10000 10000 10000 10001 01110",
+  D: "11110 10001 10001 10001 10001 10001 11110", E: "11111 10000 10000 11110 10000 10000 11111", F: "11111 10000 10000 11110 10000 10000 10000",
+  G: "01110 10001 10000 10111 10001 10001 01111", H: "10001 10001 10001 11111 10001 10001 10001", I: "01110 00100 00100 00100 00100 00100 01110",
+  J: "00111 00010 00010 00010 00010 10010 01100", K: "10001 10010 10100 11000 10100 10010 10001", L: "10000 10000 10000 10000 10000 10000 11111",
+  M: "10001 11011 10101 10101 10001 10001 10001", N: "10001 10001 11001 10101 10011 10001 10001", O: "01110 10001 10001 10001 10001 10001 01110",
+  P: "11110 10001 10001 11110 10000 10000 10000", Q: "01110 10001 10001 10001 10101 10010 01101", R: "11110 10001 10001 11110 10100 10010 10001",
+  S: "01111 10000 10000 01110 00001 00001 11110", T: "11111 00100 00100 00100 00100 00100 00100", U: "10001 10001 10001 10001 10001 10001 01110",
+  V: "10001 10001 10001 10001 10001 01010 00100", W: "10001 10001 10001 10101 10101 10101 01010", X: "10001 10001 01010 00100 01010 10001 10001",
+  Y: "10001 10001 01010 00100 00100 00100 00100", Z: "11111 00001 00010 00100 01000 10000 11111",
+  "0": "01110 10001 10011 10101 11001 10001 01110", "1": "00100 01100 00100 00100 00100 00100 01110", "2": "01110 10001 00001 00010 00100 01000 11111",
+  "3": "11110 00001 00001 01110 00001 00001 11110", "4": "00010 00110 01010 10010 11111 00010 00010", "5": "11111 10000 11110 00001 00001 10001 01110",
+  "6": "00110 01000 10000 11110 10001 10001 01110", "7": "11111 00001 00010 00100 01000 01000 01000", "8": "01110 10001 10001 01110 10001 10001 01110",
+  "9": "01110 10001 10001 01111 00001 00010 01100",
+  ".": "0 0 0 0 0 0 1", ",": "00 00 00 00 00 01 10", ":": "0 0 1 0 0 1 0", ";": "00 00 01 00 00 01 10", "!": "1 1 1 1 1 0 1", "'": "1 1 0 0 0 0 0",
+  "-": "000 000 000 111 000 000 000", "/": "00001 00010 00010 00100 01000 01000 10000", "(": "01 10 10 10 10 10 01", ")": "10 01 01 01 01 01 10",
+  "?": "01110 10001 00001 00110 00100 00000 00100", "&": "01100 10010 10100 01000 10101 10010 01101", "+": "00000 00100 00100 11111 00100 00100 00000",
+  "=": "00000 00000 11111 00000 11111 00000 00000", "%": "11001 11010 00010 00100 01000 01011 10011", "*": "00000 10101 01110 11111 01110 10101 00000",
+  " ": "000 000 000 000 000 000 000",
+};
+const glyph = (ch: string) => (F7[ch.toUpperCase()] ?? F7["?"]).split(" ");
+export const pixTextW = (s: string, u: number) => [...s].reduce((a, ch) => a + (glyph(ch)[0].length + 1) * u, 0) - u;
+// draw pixel text with block size u (in the caller's units); n = how many characters are revealed
+export const pixText = (c: Ctx, s: string, x: number, y: number, u: number, col: string, o: { shadow?: string; n?: number; align?: "left" | "center" } = {}) => {
+  let cx = o.align === "center" ? x - pixTextW(s, u) / 2 : x; cx = Math.round(cx / u) * u; y = Math.round(y / u) * u;
+  const n = o.n ?? s.length;
+  [...s].forEach((ch, i) => {
+    const g = glyph(ch); if (i >= n) { cx += (g[0].length + 1) * u; return; }
+    for (const [dx, dy, colr] of o.shadow ? [[u, u, o.shadow], [0, 0, col]] as [number, number, string][] : [[0, 0, col]] as [number, number, string][]) { c.fillStyle = colr; g.forEach((row, j) => { for (let i2 = 0; i2 < row.length; i2++) if (row[i2] === "1") c.fillRect(cx + i2 * u + dx, y + j * u + dy, u, u); }); }
+    cx += (g[0].length + 1) * u;
+  });
+};
+// the caption: pixel text on a notched dark panel, bottom centre, 60 px clear of the frame edge (full-res units)
+export const pixCaption = (c: Ctx, s: string, W: number, H: number, prog: number, alpha: number, col = "#f4ecd8", u = 5) => {
+  if (alpha <= 0) return;
+  const tw = pixTextW(s, u), pw = tw + 8 * u, ph = 13 * u, x0 = Math.round((W - pw) / 2 / u) * u, y0 = H - 60 - ph;
+  const prev = c.globalAlpha; c.globalAlpha = prev * alpha;
+  c.fillStyle = "rgba(8,6,22,0.74)"; c.fillRect(x0 + u, y0, pw - 2 * u, ph); c.fillRect(x0, y0 + u, pw, ph - 2 * u);
+  c.fillStyle = "rgba(170,160,240,0.35)"; c.fillRect(x0 + 2 * u, y0 + u, pw - 4 * u, u / 5 * 2); c.fillRect(x0 + 2 * u, y0 + ph - u - u / 5 * 2, pw - 4 * u, u / 5 * 2);
+  pixText(c, s, x0 + 4 * u, y0 + 3 * u, u, col, { shadow: "#0b0918", n: Math.ceil(prog * s.length - 1e-9) });
+  c.globalAlpha = prev;
+};

@@ -7,8 +7,10 @@ entirely in code (Canvas 2D, TypeScript, anidoodle engine). No AI images, no sto
 - NOTHING LOOPS OR REPEATS. One continuous shot, exactly the audio's length (±1 frame). Every section gets a new visual idea.
 - Every visual beat starts ON the words it illustrates (timed from the audio, never guessed from words-per-minute).
 - Something visibly moves every second. Correct science. Deterministic: `rng(seed)` only, no Math.random/clock/ctx.filter.
-- On-screen text: short paraphrase (2–5 words), writes on stroke by stroke, never overlaps the subject, 60 px margin.
-  Supported glyphs: A–Z 0–9 - . , : / ( ) & ? plus lowercase e u t g d. NO apostrophes, !, %, =, + (rephrase or draw shapes).
+- FULL FRAME: the picture fills all 1920x1080. No letterbox / black bars, ever.
+- ALL TEXT IS PIXEL TEXT: `pixText` / `pixCaption` in `pixelKit.ts` (5x7 font, types on letter by letter).
+  Captions: short paraphrase (2–5 words) on the notched dark panel, bottom centre, 60 px margin, never over the subject.
+  Glyphs: A–Z 0–9 . , : ; / ( ) & ? ! ' - + = % *  (equations are just typed text, e.g. "E = MC2").
 
 ## Where things are (`orbital-template/`)
 - `src/canvas-core/spaceStyle.ts` — THE shared look (palette, banded `ball`, `inked` lines, `glow`, `text`, `orbitDashes`,

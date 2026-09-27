@@ -2,7 +2,7 @@ import { Gfx, rng, type Ctx, type Env } from "./core";
 import { Film } from "./film";
 import { clamp, lerp } from "./gallery";
 import { W, H, FPS, CREAM, YEL, FLAT, ease, easeOut, back, ramp, span, cached, text } from "./spaceStyle";
-import { setGrid, fpx, PW, PH, INK, type Pal, rect, px, line, dashed, spans, ellipse, disc, ring, clipCircle, sphere, glow, haze, makeStars, drawStars, ptext, photon, person, type Face, type Mouth } from "./pixelKit";
+import { setGrid, fpx, pixCaption, PW, PH, INK, type Pal, rect, px, line, dashed, spans, ellipse, disc, ring, clipCircle, sphere, glow, haze, makeStars, drawStars, ptext, photon, person, type Face, type Mouth } from "./pixelKit";
 
 // LIGHT SPEED (Opus direction) · one continuous 246.4 s shot in cinematic pixel art.
 // Timing: forced alignment of the script onto the audio (speech segments from silencedetect, words
@@ -1104,6 +1104,10 @@ const draw = (ctx: Ctx, frame: number, env: Env) => {
   ctx.restore();
   // vignette, then the 2.39:1 letterbox
   const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.28, W / 2, H / 2, W * 0.62); vg.addColorStop(0, "rgba(4,3,10,0)"); vg.addColorStop(1, "rgba(4,3,10,0.5)"); ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+  if (GK > 1) { // HD cut: full frame, pixel captions on a panel
+    CAPS.forEach(([t0, s, col], i) => { const tn = CAPS[i + 1]?.[0] ?? T_END + 5; if (t < t0 - 0.02 || t > tn) return; const prog = s.startsWith("299") ? NUMBER_PROGRESS(t) : ramp(t, t0, Math.min(0.5, 0.05 + s.length * 0.022)), op = 1 - ramp(t, tn - 0.24, 0.2); pixCaption(ctx, s, W, H, prog, op, col ?? CREAM); });
+    return;
+  }
   ctx.fillStyle = "#05040a"; ctx.fillRect(0, 0, W, 140); ctx.fillRect(0, 940, W, 140);
   // subtitles, written on stroke by stroke in the bottom bar
   const words: (() => void)[] = [];
