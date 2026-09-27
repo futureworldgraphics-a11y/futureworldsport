@@ -7,13 +7,42 @@ entirely in code (Canvas 2D, TypeScript, anidoodle engine). No AI images, no sto
 - NOTHING LOOPS OR REPEATS. One continuous shot, exactly the audio's length (±1 frame). Every section gets a new visual idea.
 - Every visual beat starts ON the words it illustrates (timed from the audio, never guessed from words-per-minute).
 - Something visibly moves every second. Correct science. Deterministic: `rng(seed)` only, no Math.random/clock/ctx.filter.
-- On-screen text: short paraphrase (2–5 words), writes on stroke by stroke, never overlaps the subject, 60 px margin.
-  Supported glyphs: A–Z 0–9 - . , : / ( ) & ? plus lowercase e u t g d. NO apostrophes, !, %, =, + (rephrase or draw shapes).
+- FULL FRAME: the picture fills all 1920x1080. No letterbox / black bars, ever (`endFrame(..., { full: true })`).
+- ALL TEXT IS PIXEL TEXT (5x7 pixel font, types on with a block cursor). Short paraphrases (2–5 words), 60 px margin,
+  never over the subject. In house-style films: the top-left HUD via `h.say` (label line + main line, soft dark band behind).
+  Equations are just typed text (e.g. "E = MC2").
+
+## MAIN PIXEL ANIMATION STYLE (the default for every video; also called "Candlelight Pixel")
+Detailed native pixel art, cinematic, gently funny. Whenever the user asks for a video, a chunk, "pixel animation",
+"our style", "main style" or "Candlelight Pixel", build EXACTLY this style — read `candlePix.ts` first
+(for structure only; never copy its scenes) and follow every rule in this section.
+Reference: `src/canvas-core/candlePix.ts` (first 30 s of The One Speed) + `out/chunk_candlePix.mp4`.
+- Draw pixel by pixel with `src/canvas-core/pixelArt.ts` at 480x270 art pixels, blown up 4x (textured planets, craters,
+  night-side rim light, clustered nebulae, sparkle stars, Bayer dither only where tones meet). Never pixelate smooth art.
+- Keep candlePix's colour tone: warm amber interiors, cold violet/navy space, white-hot events, hue-shifted ramps.
+- NO DIRECT CUTS for most scene changes: camera moves, match cuts (a glow becomes the next scene's light), morphs,
+  pull-backs / scale reveals, pixel dissolves. The more creative the transition, the better.
+- Entertaining but never exaggerated: small cause-and-effect details (a cat's ear twitch, a bar pinned off-scale),
+  a recurring photon character, sound-worthy beats. Text: pixel font HUD top-left, typed with a block cursor.
+- Characters: `pixelChars.ts` sprites drawn 1:1 on the art grid (lit by the scene).
+
+## Earlier cinematic style (still available): cinemaKit + pixel finish
+Draw a cinematic frame with `src/canvas-core/cinemaKit.ts` (light primitives, starfield camera, globe, bloom, bokeh,
+vignette), then finish it as pixel art: `endFrame(ctx, env, frame, t, f, { pixel: 3, full: true, hud })`
+(`pixelFinish.ts`: 640x360 art pixels, fixed palette, 4x4 Bayer dither, pixel font). Start at `orbital-template/cinema/README.md`.
+Reference films: `oneSpeed.ts` (light speed, 4:06, the look the user liked most) and `paleDotPixel.ts` (Pale Blue Dot).
+Pipeline: `cinema/PLANNER_GUIDE.md`, `cinema/SCREENPLAY_FORMAT.md`, `cinema/CODER_RULES.md`; timing `python3 tools/align.py`
+(needs `pip install pocketsphinx`); scaffold `node tools/new-film.mjs <name>`; deliver `node tools/finish.mjs <name>`;
+gate `node tools/check.mjs <name>` (must print PASSED). Never restyle cinemaKit; `paleDot` must stay pixel-identical.
+Older looks (do not use for new films unless asked): `spaceStyle.ts` flat vector; `pixelKit.ts` hand-drawn pixel world
+(`lightSpeedOpus`, `lightSpeedHD`).
 
 ## Where things are (`orbital-template/`)
-- `src/canvas-core/spaceStyle.ts` — THE shared look (palette, banded `ball`, `inked` lines, `glow`, `text`, `orbitDashes`,
-  `motes`, `gluon`, `check`/`cross`, `card`, easing, `ramp`/`span`). Read it before coding; never restyle it.
-- Example chunks (read ONE for structure only, never copy scenes): `andromedaOpus.ts` (best), `quarks.ts`, `magnet.ts`, `nucleus.ts`.
+- House style: see above. Shared easing/`ramp`/`span` live in `spaceStyle.ts`.
+- Characters (LOCKED STYLE): every person is a detailed pixel sprite from `src/canvas-core/pixelChars.ts`
+  (`drawChar(ctx, env, spec, x, footY, scale, pose, flip)`, ready cast in `CAST`: doctor, child, scientist, physicist;
+  new people = a new `CharSpec`, never hand-drawn stick figures). Reference sheet: `out/charsheet.png`.
+  In house-style films draw them into the frame before `endFrame`, so the pixel finish palettes them with the scene.
 - Host page per chunk: `src/hosts/page-<name>.ts`. The Film export name MUST equal `<name>` (tools look it up by name).
 - Outputs: `orbital-template/out/chunk_<name>.mp4` + `out/contact_<name>.png`.
 
