@@ -2,7 +2,7 @@ import { Gfx, rng, type Ctx, type Env } from "./core";
 import { Film } from "./film";
 import { clamp, lerp } from "./gallery";
 import { W, H, FPS, CREAM, YEL, FLAT, ease, easeOut, back, ramp, span, cached, text } from "./spaceStyle";
-import { PW, PH, INK, type Pal, rect, px, line, dashed, spans, ellipse, disc, ring, clipCircle, sphere, glow, haze, makeStars, drawStars, ptext, photon, person, type Face, type Mouth } from "./pixelKit";
+import { setGrid, fpx, PW, PH, INK, type Pal, rect, px, line, dashed, spans, ellipse, disc, ring, clipCircle, sphere, glow, haze, makeStars, drawStars, ptext, photon, person, type Face, type Mouth } from "./pixelKit";
 
 // LIGHT SPEED (Opus direction) · one continuous 246.4 s shot in cinematic pixel art.
 // Timing: forced alignment of the script onto the audio (speech segments from silencedetect, words
@@ -42,6 +42,8 @@ import { PW, PH, INK, type Pal, rect, px, line, dashed, spans, ellipse, disc, ri
 
 const DURATION = 7392; // 246.40 s (audio 246.413 s)
 const PIX = W / PW; // 5
+// grid factor: 1 = the released film; 2 = the HD pixel cut (same world, twice-as-fine raster)
+let GK = 1;
 const T_END = 246.413;
 
 // ================================================================ palettes (colour = photon energy, kept all the way through)
@@ -70,7 +72,7 @@ const hex = (h: string) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5),
 const mix = (a: string, b: string, k: number) => { const A = hex(a), B = hex(b); return "#" + A.map((v, i) => Math.round(v + (B[i] - v) * clamp(k)).toString(16).padStart(2, "0")).join(""); };
 const easeIn = (x: number) => x * x * x;
 const pop = (t: number, t0: number, d = 0.35) => Math.max(0, back(clamp(ramp(t, t0, d))));
-const bands = (c: Ctx, y0: number, y1: number, top: string, bot: string, n = 8) => { for (let i = 0; i < n; i++) { const ya = y0 + ((y1 - y0) * i) / n, yb = y0 + ((y1 - y0) * (i + 1)) / n; rect(c, -12, ya - (i === 0 ? 12 : 0), PW + 24, yb - ya + 1 + (i === 0 ? 12 : 0) + (i === n - 1 ? 12 : 0), mix(top, bot, i / (n - 1))); } };
+const bands = (c: Ctx, y0: number, y1: number, top: string, bot: string, n = 8) => { if (GK > 1) n *= 4; for (let i = 0; i < n; i++) { const ya = y0 + ((y1 - y0) * i) / n, yb = y0 + ((y1 - y0) * (i + 1)) / n; rect(c, -12, ya - (i === 0 ? 12 : 0), PW + 24, yb - ya + 1 + (i === 0 ? 12 : 0) + (i === n - 1 ? 12 : 0), mix(top, bot, i / (n - 1))); } };
 const fmt = (n: number) => Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 const between = (t: number, a: number, b: number) => t >= a && t < b;
 // a photon launched at t0 while the camera accelerates to ride along with it: [screen x, camera travel]
@@ -130,8 +132,39 @@ const book = (c: Ctx, x: number, y: number, col: string, open: number) => {
 
 // ================================================================ SCENE: kitchen (0 - 4.3)
 const KSTAR = makeStars(301, 18, 92, 44);
+// HD-only set dressing (drawn only on the fine grid; the released film never calls these)
+const HDR = rng(777);
+const SKY = Array.from({ length: 14 }, (_, i) => ({ w: 4 + Math.floor(HDR() * 6), h: 5 + Math.floor(HDR() * 13), lit: Array.from({ length: 6 }, () => HDR()) }));
+const GRAIN = Array.from({ length: 16 }, () => ({ y: 153 + HDR() * 36, ph: HDR() * 6.28, fq: 0.02 + HDR() * 0.05, a: 0.25 + HDR() * 0.4, x0: HDR() * 200, len: 90 + HDR() * 260 }));
+const MOTES = Array.from({ length: 34 }, () => ({ x: HDR() * 160 - 80, y: HDR() * 120 - 60, sp: 0.4 + HDR() * 1.2, ph: HDR() * 6.28 }));
+const DRIPS = [[-4, 5], [-2, 2.5], [1, 3.5], [3, 7]];
+const kWall = (c: Ctx) => {
+  for (let x = 4; x < PW; x += 12) { rect(c, x, 0, 0.5, 150, "rgba(255,220,200,0.035)"); for (let y = 6; y < 146; y += 12) { fpx(c, x + 6, y, "rgba(255,210,190,0.07)"); fpx(c, x + 5.5, y + 0.5, "rgba(255,210,190,0.05)"); fpx(c, x + 6.5, y + 0.5, "rgba(255,210,190,0.05)"); fpx(c, x + 6, y + 1, "rgba(255,210,190,0.07)"); } }
+  rect(c, 0, 118, PW, 0.5, "rgba(255,220,200,0.06)"); rect(c, 0, 118.5, PW, 0.5, "rgba(0,0,0,0.18)");
+};
+const kSkyline = (c: Ctx, WX: number, WY: number, WW: number, WH: number, t: number) => {
+  let x = WX; const base = WY + WH;
+  SKY.forEach((b, i) => { if (x >= WX + WW) return; const w = Math.min(b.w, WX + WW - x); rect(c, x, base - b.h, w, b.h, i % 2 ? "#0a0d22" : "#0d1128"); rect(c, x, base - b.h, w, 0.5, "#1c2448");
+    for (let k = 0; k < 6; k++) { const on = b.lit[k] > 0.55 !== (i === 5 && k === 2 && t > 1.2); if (!on) continue; const wx = x + 1 + (k % 2) * 2, wy = base - b.h + 2 + Math.floor(k / 2) * 3; if (wx < x + w - 0.5 && wy < base - 1) rect(c, wx, wy, 1, 0.5, b.lit[k] > 0.85 ? "#ffe9a8" : "#ffc76a"); }
+    x += w + 0.5; });
+};
+const kGlass = (c: Ctx, WX: number, WY: number, WW: number, WH: number) => { for (const [ox, oy, n] of [[14, 30, 9], [18, 36, 5], [60, 80, 7], [64, 86, 4]]) line(c, WX + ox, WY + oy, WX + ox + n, WY + oy - n, "rgba(220,230,255,0.12)", 0.5); rect(c, WX - 6, WY - 6, WW + 12, 0.5, "#7a5236"); rect(c, WX - 6, WY - 6, 0.5, WH + 12, "#6a4428"); rect(c, WX + WW + 5.5, WY - 6, 0.5, WH + 12, "#22130a"); };
+const kJar = (c: Ctx, x: number, h: number) => { const top = 72 - h; rect(c, x + 2, top + h * 0.35, 6, h * 0.36, "rgba(240,228,200,0.8)"); rect(c, x + 3, top + h * 0.45, 4, 0.5, "rgba(90,70,60,0.6)"); rect(c, x + 1, top + 1, 0.5, h - 2, "rgba(255,255,255,0.22)"); rect(c, x - 1, top - 2, 12, 0.5, "#5a4444"); };
+const kCounter = (c: Ctx, CX: number) => {
+  for (const g of GRAIN) { for (let x = g.x0; x < Math.min(PW, g.x0 + g.len); x += 0.5) { const y = g.y + Math.sin(x * g.fq + g.ph) * 1.2; fpx(c, x, y, `rgba(20,10,4,${g.a.toFixed(2)})`); } }
+  for (let x = 0; x < PW; x += 0.5) { const k = Math.max(0, 1 - Math.abs(x - CX) / 150); if (k > 0) fpx(c, x, 150, `rgba(255,190,120,${(0.75 * k).toFixed(3)})`); }
+  c.globalAlpha = 0.12; ellipse(c, CX, 156, 9, 3, "#ffb060"); c.globalAlpha = 1;
+};
+const kSteam = (c: Ctx, x: number, y: number, t: number) => { for (let s = 0; s < 3; s++) for (let k = 0; k < 40; k++) { const q = ((t * 0.35 + s / 3 + k / 40) % 1), yy = y - q * 26, xx = x + s * 2 - 2 + Math.sin(q * 9 + t * 1.5 + s * 2) * (1 + q * 3); fpx(c, xx, yy, `rgba(230,225,240,${(0.22 * Math.sin(q * Math.PI)).toFixed(3)})`); } };
+const kCandleHD = (c: Ctx, CX: number, CB: number, t: number) => {
+  DRIPS.forEach(([dx, h]) => { rect(c, CX + dx, CB - 24, 1, h, "#fffaf0"); disc(c, CX + dx + 0.5, CB - 24 + h, 0.6, "#fffaf0"); });
+  ellipse(c, CX, CB - 23.5, 3.5, 0.8, "#fff4d8"); rect(c, CX - 4, CB - 18, 0.5, 14, "rgba(255,240,200,0.5)");
+  for (let k = 0; k < 7; k++) { const q = (t * 0.8 + k / 7) % 1, x = CX + Math.sin(k * 2.3 + t * 3) * 3 * q, y = CB - 34 - q * 30; fpx(c, x, y, `rgba(255,200,120,${(0.9 * (1 - q)).toFixed(3)})`); }
+  for (const m of MOTES) { const x = CX + m.x + Math.sin(t * 0.3 * m.sp + m.ph) * 6, y = 100 + m.y - ((t * 2.5 * m.sp) % 20), d = Math.hypot(x - CX, y - 120) / 90; if (d < 1) fpx(c, x, y, `rgba(255,220,170,${((1 - d) * (0.35 + 0.35 * Math.sin(t * 2 + m.ph))).toFixed(3)})`); }
+};
 const sKitchen: Draw = (c, t, L) => {
   bands(c, 0, PH, "#26142e", "#110a18", 6);
+  if (GK > 1) kWall(c);
   const fl = flick(t), CX = 170, CB = 150, WX = 254, WY = 40, WW = 92, WH = 96;
   haze(c, CX, 112, 150 + fl * 4, "255,140,60", 0.3); glow(c, CX, 118, 34 + fl * 2, "255,170,80", 0.35);
   // window onto the night
@@ -139,24 +172,28 @@ const sKitchen: Draw = (c, t, L) => {
   for (let i = 0; i < 6; i++) rect(c, WX, WY + i * 16, WW, 16, mix("#1c2658", "#0a1030", i / 5));
   for (const s of KSTAR) { c.globalAlpha = 0.5 + 0.5 * Math.sin(t * s.sp + s.ph); px(c, WX + s.x, WY + s.y, s.col); } c.globalAlpha = 1;
   glow(c, WX + 68, WY + 24, 20, "240,230,200", 0.4); disc(c, WX + 68, WY + 24, 8, "#f4ecc8"); px(c, WX + 65, WY + 21, "#d8ceaa"); px(c, WX + 70, WY + 27, "#d8ceaa"); px(c, WX + 71, WY + 22, "#d8ceaa");
+  if (GK > 1) kSkyline(c, WX, WY, WW, WH, t);
   rect(c, WX + WW / 2 - 1, WY, 2, WH, "#3a2214"); rect(c, WX, WY + WH / 2 - 1, WW, 2, "#3a2214");
-  for (let k = 0; k < 5; k++) px(c, WX + 8 + k, WY + 44 - k, "rgba(255,255,255,0.18)");
+  if (GK > 1) kGlass(c, WX, WY, WW, WH); else for (let k = 0; k < 5; k++) px(c, WX + 8 + k, WY + 44 - k, "rgba(255,255,255,0.18)");
   rect(c, WX - 12, WY + WH + 6, WW + 24, 5, "#5a3822"); rect(c, WX - 12, WY + WH + 11, WW + 24, 2, "#2a160c");
   rect(c, WX + 4, WY + WH - 2, 10, 8, "#a8502a"); rect(c, WX + 4, WY + WH - 2, 10, 2, "#c8683a");
   disc(c, WX + 9, WY + WH - 6, 4, "#2f7a3a"); disc(c, WX + 6, WY + WH - 9, 3, "#3f9a4a"); disc(c, WX + 12, WY + WH - 10, 3, "#3f9a4a");
   // shelf with jars, lit from the right by the candle
   rect(c, 18, 72, 92, 3, "#4a2c1a"); rect(c, 18, 75, 92, 1, "#1a0e08");
-  [[26, 12, "#6a8a9a"], [44, 16, "#9a6a4a"], [66, 10, "#7a9a6a"], [84, 14, "#8a7aa0"]].forEach(([x, h, col]) => { rect(c, x as number, 72 - (h as number), 10, h as number, col as string); rect(c, (x as number) + 7, 72 - (h as number), 3, h as number, mix(col as string, "#ffb070", 0.35)); rect(c, (x as number) - 1, 72 - (h as number) - 2, 12, 2, "#3a2a2a"); });
+  [[26, 12, "#6a8a9a"], [44, 16, "#9a6a4a"], [66, 10, "#7a9a6a"], [84, 14, "#8a7aa0"]].forEach(([x, h, col]) => { rect(c, x as number, 72 - (h as number), 10, h as number, col as string); rect(c, (x as number) + 7, 72 - (h as number), 3, h as number, mix(col as string, "#ffb070", 0.35)); rect(c, (x as number) - 1, 72 - (h as number) - 2, 12, 2, "#3a2a2a"); if (GK > 1) kJar(c, x as number, h as number); });
   // counter, kettle, mug
   rect(c, 0, 150, PW, 40, "#2e1a10"); rect(c, 0, 150, PW, 2, "#6a4026"); rect(c, 0, 152, PW, 1, "#1a0e08");
+  if (GK > 1) kCounter(c, CX);
   ellipse(c, 70, 140, 15, 10, "#1c1218"); rect(c, 56, 144, 28, 6, "#1c1218"); line(c, 84, 140, 94, 132, "#1c1218", 3); ring(c, 70, 128, 7, "#1c1218", 2);
   for (let k = 0; k < 6; k++) px(c, 82 - (k > 3 ? 1 : 0), 134 + k * 2, "#8a4a2a");
   rect(c, 214, 138, 12, 12, "#c8d0e0"); rect(c, 222, 138, 4, 12, "#98a0b8"); ring(c, 229, 144, 4, "#c8d0e0", 2);
+  if (GK > 1) { rect(c, 214, 138, 12, 1, "#3a2a20"); rect(c, 215, 139, 1, 10, "rgba(255,255,255,0.35)"); kSteam(c, 220, 136, t); }
   // the candle
   ellipse(c, CX, CB, 15, 3, "#6a4a28"); ellipse(c, CX, CB - 1, 13, 2, "#9a7a4a");
   rect(c, CX - 4, CB - 24, 8, 23, "#f0e6cc"); rect(c, CX + 2, CB - 24, 2, 23, "#c8b894"); rect(c, CX - 4, CB - 24, 8, 1, "#fff8e8"); rect(c, CX - 4, CB - 20, 1, 5, "#fff8e8");
   px(c, CX, CB - 25, "#2a1a10"); px(c, CX, CB - 26, "#2a1a10");
   flame(c, CX, CB - 26, 12 + fl * 1.4 + 2 * span(t, 0.55, 1.2, 0.2), fl);
+  if (GK > 1) kCandleHD(c, CX, CB, t);
   L(CX, CB - 34, 60, "255,160,70", 0.55 + fl * 0.05);
   // the photon: born in the flame, blinks, looks at us, leaves through the window
   if (t >= 1.72) {
@@ -211,9 +248,15 @@ const earth = (c: Ctx, x: number, y: number, R: number) => {
   if (R < 0.8) { px(c, x, y, "#6fb0ff"); return; }
   c.globalAlpha = 0.55; ring(c, x, y, R + 2.5, "#5f9fef", 1); c.globalAlpha = 1;
   sphere(c, x, y, R, EARTHP);
-  if (R > 6) { disc(c, x - R * 0.3, y - R * 0.08, R * 0.34, "#2f8a3e"); disc(c, x + R * 0.26, y + R * 0.22, R * 0.28, "#3a9a4a"); disc(c, x + R * 0.02, y - R * 0.46, R * 0.18, "#2f8a3e"); disc(c, x - R * 0.34, y - R * 0.14, R * 0.14, "#4aaa5a"); }
-  const tx = Math.round(x + R * 0.18); c.fillStyle = "rgba(4,3,18,0.55)"; spans(x, y, R, R, (yy, a, b) => { const s = Math.max(a, tx); if (b > s) c.fillRect(s, yy, b - s, 1); });
-  if (R > 5) px(c, x + R * 0.5, y + R * 0.12, "#ffd27a");
+  if (R > 6 && GK > 1) { // HD: coastlines, clouds, city lights, a thin bright atmosphere
+    c.save(); clipCircle(c, x, y, R);
+    for (const [ox, oy, rr, col] of [[-0.3, -0.08, 0.34, "#2f8a3e"], [0.26, 0.22, 0.28, "#3a9a4a"], [0.02, -0.46, 0.18, "#2f8a3e"], [-0.34, -0.14, 0.14, "#4aaa5a"], [-0.12, 0.2, 0.12, "#6a9a4a"], [0.4, -0.1, 0.1, "#c8b070"], [-0.45, 0.3, 0.09, "#3a8a3e"]] as [number, number, number, string][]) { ellipse(c, x + R * ox, y + R * oy, R * rr * 1.08, R * rr, mix(col, "#10286a", 0.35)); ellipse(c, x + R * ox, y + R * oy, R * rr, R * rr * 0.92, col); ellipse(c, x + R * ox - R * rr * 0.3, y + R * oy - R * rr * 0.3, R * rr * 0.35, R * rr * 0.25, mix(col, "#e8f0a0", 0.3)); }
+    const cr = rng(55); for (let k = 0; k < 16; k++) { const cx = x + (cr() - 0.5) * 2 * R, cy = y + (cr() - 0.5) * 2 * R, w = R * (0.12 + cr() * 0.3); c.globalAlpha = 0.75; ellipse(c, cx, cy, w, R * 0.035 + 0.5, "#f4f8ff"); ellipse(c, cx + w * 0.3, cy + R * 0.04, w * 0.5, 0.5, "#c8d4ee"); } c.globalAlpha = 1;
+    c.restore();
+  } else if (R > 6) { disc(c, x - R * 0.3, y - R * 0.08, R * 0.34, "#2f8a3e"); disc(c, x + R * 0.26, y + R * 0.22, R * 0.28, "#3a9a4a"); disc(c, x + R * 0.02, y - R * 0.46, R * 0.18, "#2f8a3e"); disc(c, x - R * 0.34, y - R * 0.14, R * 0.14, "#4aaa5a"); }
+  const tx = Math.round(x + R * 0.18); c.fillStyle = "rgba(4,3,18,0.55)"; spans(x, y, R, R, (yy, a, b, h) => { const s = Math.max(a, tx); if (b > s) c.fillRect(s, yy, b - s, h); });
+  if (R > 5 && GK > 1) { const lr = rng(56); for (let k = 0; k < 60; k++) { const a = lr() * 6.283, d = Math.sqrt(lr()) * R * 0.95, X = x + Math.cos(a) * d, Y = y + Math.sin(a) * d; if (X > tx + 1) fpx(c, X, Y, lr() > 0.7 ? "#fff0b0" : "#ffc860"); } c.globalAlpha = 0.6; ring(c, x, y, R + 0.5, "#9fd4ff", 0.5); c.globalAlpha = 1; }
+  else if (R > 5) px(c, x + R * 0.5, y + R * 0.12, "#ffd27a");
 };
 const hourglass = (c: Ctx, x: number, y: number, t: number) => {
   for (let j = 0; j < 4; j++) { rect(c, x - 3 + j, y - 4 + j, 7 - 2 * j, 1, "#e8dcc0"); rect(c, x - 3 + j, y + 3 - j, 7 - 2 * j, 1, "#e8dcc0"); }
@@ -258,7 +301,12 @@ const sCosmos: Draw = (c, t, L) => {
     if (t < 12.45) {
       const R = Math.max(2.5, (44 + Math.sin(t * 2) + wob) * (1 - cc) + 2.5 * cc), pal = cc > 0.6 ? HOTP : RSG;
       glow(c, sx, sy, R * 1.9, "255,120,60", 0.5 * (1 - cc)); sphere(c, sx, sy, R, pal);
-      if (R > 12) for (let i = 0; i < 9; i++) { const a = i * 0.7 + t * 0.15, rr = R * (0.25 + 0.55 * ((i * 0.37) % 1)); disc(c, sx + Math.cos(a) * rr, sy + Math.sin(a) * rr, R * 0.09, i % 2 ? RSG[1] : RSG[3]); }
+      if (R > 12 && GK > 1) {
+        c.save(); clipCircle(c, sx, sy, R); const gr = rng(88);
+        for (let i = 0; i < 90; i++) { const a = gr() * 6.283 + t * 0.05 * (gr() - 0.5), d = Math.sqrt(gr()) * R, rr = R * (0.035 + gr() * 0.05) * (0.8 + 0.2 * Math.sin(t * 3 + i)); c.globalAlpha = 0.55; disc(c, sx + Math.cos(a) * d, sy + Math.sin(a) * d, rr, i % 3 ? RSG[3] : RSG[1]); }
+        c.globalAlpha = 0.55; ring(c, sx, sy, R, RSG[0], Math.max(1, R * 0.1)); c.globalAlpha = 1; c.restore();
+        for (let p = 0; p < 3; p++) { const a0 = 2.2 + p * 1.9 + Math.sin(t * 0.7 + p) * 0.1, h = R * (0.12 + 0.05 * Math.sin(t * 2 + p)); for (let u = 0; u <= 1; u += 0.02) { const a = a0 + (u - 0.5) * 0.28, rr = R + Math.sin(u * Math.PI) * h; fpx(c, sx + Math.cos(a) * rr, sy + Math.sin(a) * rr, u > 0.1 && u < 0.9 ? "#ffb070" : "#ff6a2a"); } }
+      } else if (R > 12) for (let i = 0; i < 9; i++) { const a = i * 0.7 + t * 0.15, rr = R * (0.25 + 0.55 * ((i * 0.37) % 1)); disc(c, sx + Math.cos(a) * rr, sy + Math.sin(a) * rr, R * 0.09, i % 2 ? RSG[1] : RSG[3]); }
       L(sx, sy, R * 2.2, "255,140,80", 0.5 + cc);
       if (t > 12.2) glow(c, sx, sy, 20, "255,255,255", ramp(t, 12.2, 0.25));
     } else {
@@ -425,7 +473,7 @@ const sRace: Draw = (c, t, L, _env, o = {}) => {
   const sa = span(t, 58.7, 61.6, 0.25);
   if (sa > 0) {
     const dx = 96, dy = cy + 50; c.globalAlpha = sa;
-    c.fillStyle = "rgba(10,8,26,0.85)"; spans(dx, dy, 19, 19, (yy, a, b) => { if (yy <= dy) c.fillRect(a, yy, b - a, 1); });
+    c.fillStyle = "rgba(10,8,26,0.85)"; spans(dx, dy, 19, 19, (yy, a, b, h) => { if (yy <= dy) c.fillRect(a, yy, b - a, h); });
     for (let i = 0; i <= 40; i++) { const a = Math.PI + (i / 40) * Math.PI; px(c, dx + Math.cos(a) * 17, dy + Math.sin(a) * 17, "#8f89c9"); }
     for (let i = 0; i <= 6; i++) { const a = Math.PI + (i / 6) * Math.PI; line(c, dx + Math.cos(a) * 13, dy + Math.sin(a) * 13, dx + Math.cos(a) * 16, dy + Math.sin(a) * 16, i === 5 ? "#ffd166" : "#5a548a"); }
     const na = Math.PI + 0.8 * Math.PI; line(c, dx, dy, dx + Math.cos(na) * 14, dy + Math.sin(na) * 14, "#ff6a5a"); disc(c, dx, dy, 2, "#e8e6ff");
@@ -442,8 +490,8 @@ const sRace: Draw = (c, t, L, _env, o = {}) => {
 };
 
 // ================================================================ SCENE: the aside (63.44 - 88.2)
-const frozenRace = (env: Env) => cached(env, "lsoFrozen", () => {
-  const Lr = env.canvas(Math.round(PW * env.scale), Math.round(PH * env.scale)), c = Lr.ctx; c.setTransform(env.scale, 0, 0, env.scale, 0, 0); c.imageSmoothingEnabled = false;
+const frozenRace = (env: Env) => cached(env, `lsoFrozen${GK}`, () => {
+  const bs = env.scale * GK, Lr = env.canvas(Math.round(PW * bs), Math.round(PH * bs)), c = Lr.ctx; c.setTransform(bs, 0, 0, bs, 0, 0); c.imageSmoothingEnabled = false;
   sRace(c, 63.44, () => undefined, env, { noHero: true }); return Lr;
 });
 const sAside: Draw = (c, t, L, env) => {
@@ -995,8 +1043,8 @@ const SCENES: Scene[] = [
   { a: 216.5, b: T_END + 1, draw: sPark, enter: { kind: "slideUp", d: 1.1 } },
 ];
 type Light = { x: number; y: number; r: number; rgb: string; a: number };
-const pixBuf = (env: Env) => cached(env, "lsoPix", () => env.canvas(Math.round(PW * env.scale), Math.round(PH * env.scale)));
-const sceneLayer = (env: Env, i: number) => cached(env, `lsoL${i}`, () => env.canvas(Math.round(PW * env.scale), Math.round(PH * env.scale)));
+const pixBuf = (env: Env) => cached(env, `lsoPix${GK}`, () => env.canvas(Math.round(PW * env.scale * GK), Math.round(PH * env.scale * GK)));
+const sceneLayer = (env: Env, i: number) => cached(env, `lso${GK}L${i}`, () => env.canvas(Math.round(PW * env.scale * GK), Math.round(PH * env.scale * GK)));
 
 // ================================================================ subtitles (bottom letterbox bar; 2-5 word paraphrases)
 const CAPS: [number, string, string?][] = [
@@ -1023,8 +1071,9 @@ const NUMBER_PROGRESS = (t: number) => { const n = 15; const k = t < 186.9 ? 4 *
 
 // ================================================================ draw
 const draw = (ctx: Ctx, frame: number, env: Env) => {
-  const t = frame / FPS, sc = env.scale, g = new Gfx(ctx, env, frame, FLAT);
-  const P = pixBuf(env), pc = P.ctx; pc.setTransform(sc, 0, 0, sc, 0, 0); pc.imageSmoothingEnabled = false; pc.globalAlpha = 1; pc.globalCompositeOperation = "source-over"; pc.fillStyle = "#05040a"; pc.fillRect(0, 0, PW, PH);
+  const t = frame / FPS, sc = env.scale, bs = sc * GK, g = new Gfx(ctx, env, frame, FLAT);
+  setGrid(GK);
+  const P = pixBuf(env), pc = P.ctx; pc.setTransform(bs, 0, 0, bs, 0, 0); pc.imageSmoothingEnabled = false; pc.globalAlpha = 1; pc.globalCompositeOperation = "source-over"; pc.fillStyle = "#05040a"; pc.fillRect(0, 0, PW, PH);
   const lights: Light[] = [];
   SCENES.forEach((S, i) => {
     if (t < S.a || t >= S.b) return;
@@ -1036,17 +1085,18 @@ const draw = (ctx: Ctx, frame: number, env: Env) => {
     let x0 = fx - gx / z, y0 = fy - gy / z; const sw = PW / z, sh = PH / z; x0 = clamp(x0, 0, PW - sw); y0 = clamp(y0, 0, PH - sh);
     const Lf: LightFn = (x, y, r, rgb, a) => { if (a <= 0) return; const X = (x - x0) * z + dx, Y = (y - y0) * z + dy; if (iris >= 0 && Math.hypot(X - (S.enter?.cx ?? 0), Y - (S.enter?.cy ?? 0)) > iris) return; lights.push({ x: X, y: Y, r: r * z, rgb, a: a * alpha }); };
     const Ly = sceneLayer(env, i), lc = Ly.ctx;
-    lc.setTransform(1, 0, 0, 1, 0, 0); lc.globalAlpha = 1; lc.globalCompositeOperation = "source-over"; lc.clearRect(0, 0, Math.round(PW * sc), Math.round(PH * sc));
-    lc.setTransform(sc, 0, 0, sc, 0, 0); lc.imageSmoothingEnabled = false;
+    lc.setTransform(1, 0, 0, 1, 0, 0); lc.globalAlpha = 1; lc.globalCompositeOperation = "source-over"; lc.clearRect(0, 0, Math.round(PW * bs), Math.round(PH * bs));
+    lc.setTransform(bs, 0, 0, bs, 0, 0); lc.imageSmoothingEnabled = false;
     S.draw(lc, t, Lf, env);
     pc.save(); pc.globalAlpha = alpha;
     if (iris >= 0) clipCircle(pc, S.enter!.cx!, S.enter!.cy!, Math.max(0.5, iris));
-    pc.drawImage(Ly.canvas as CanvasImageSource, x0 * sc, y0 * sc, sw * sc, sh * sc, dx, dy, PW, PH);
+    pc.drawImage(Ly.canvas as CanvasImageSource, x0 * bs, y0 * bs, sw * bs, sh * bs, dx, dy, PW, PH);
     pc.restore();
   });
   // blow the pixel world up to 1080p, crisp
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(P.canvas as CanvasImageSource, 0, 0, Math.round(PW * sc), Math.round(PH * sc), 0, 0, Math.round(W * sc), Math.round(H * sc)); ctx.restore();
+  ctx.drawImage(P.canvas as CanvasImageSource, 0, 0, Math.round(PW * bs), Math.round(PH * bs), 0, 0, Math.round(W * sc), Math.round(H * sc)); ctx.restore();
+  setGrid(1);
   ctx.setTransform(sc, 0, 0, sc, 0, 0); ctx.imageSmoothingEnabled = true;
   // full-resolution bloom on every light source (pixel world, cinematic light)
   ctx.save(); ctx.globalCompositeOperation = "lighter";
@@ -1070,4 +1120,12 @@ export const lightSpeedOpus: Film = {
   meta: { title: "lightSpeedOpus", W, H, fps: FPS, bpm: 120, durationFrames: DURATION },
   assets: { images: {} },
   shots: [{ id: "lightSpeedOpus", start: 0, end: DURATION, draw }],
+};
+
+// HD pixel cut of the opening 30 s: the same shot on a twice-as-fine grid (768x432 blown up 2.5x)
+const HD_DURATION = 900;
+export const lightSpeedHD: Film = {
+  meta: { title: "lightSpeedHD", W, H, fps: FPS, bpm: 120, durationFrames: HD_DURATION },
+  assets: { images: {} },
+  shots: [{ id: "lightSpeedHD", start: 0, end: HD_DURATION, draw: (ctx, frame, env) => { GK = 2; try { draw(ctx, frame, env); } finally { GK = 1; setGrid(1); } } }],
 };
