@@ -14,6 +14,9 @@ entirely in code (Canvas 2D, TypeScript, anidoodle engine). No AI images, no sto
 - `src/canvas-core/spaceStyle.ts` — THE shared look (palette, banded `ball`, `inked` lines, `glow`, `text`, `orbitDashes`,
   `motes`, `gluon`, `check`/`cross`, `card`, easing, `ramp`/`span`). Read it before coding; never restyle it.
 - Example chunks (read ONE for structure only, never copy scenes): `andromedaOpus.ts` (best), `quarks.ts`, `magnet.ts`, `nucleus.ts`.
+- Characters (LOCKED STYLE): every person is a detailed pixel sprite from `src/canvas-core/pixelChars.ts`
+  (`drawChar(ctx, env, spec, x, footY, scale, pose, flip)`, ready cast in `CAST`: doctor, child, scientist, physicist;
+  new people = a new `CharSpec`, never hand-drawn stick figures). Reference sheet: `out/charsheet.png`.
 - Host page per chunk: `src/hosts/page-<name>.ts`. The Film export name MUST equal `<name>` (tools look it up by name).
 - Outputs: `orbital-template/out/chunk_<name>.mp4` + `out/contact_<name>.png`.
 
