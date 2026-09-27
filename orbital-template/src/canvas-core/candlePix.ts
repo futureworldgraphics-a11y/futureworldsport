@@ -180,7 +180,10 @@ const sSpace = (pb: PB, t: number) => {
     rect(pb, X, Y, Wd, 1, hx("#4a4480"), pa); rect(pb, X, Y + Hd - 1, Wd, 1, hx("#4a4480"), pa); rect(pb, X, Y, 1, Hd, hx("#4a4480"), pa); rect(pb, X + Wd - 1, Y, 1, Hd, hx("#4a4480"), pa);
     // burst icon + bar
     for (let k = 0; k < 8; k++) { const a = (k / 8) * 6.283; lineP(pb, X + 12, Y + 18, X + 12 + Math.cos(a) * 5, Y + 18 + Math.sin(a) * 5, hx("#c4a0ff"), pa); } pb.set(X + 12, Y + 18, WHITE);
-    const b1 = easeOut(rampT(t, C.seconds, 0.45)) * 420; rect(pb, X + 24, Y + 15, Math.min(b1, AW - X - 24), 6, hx("#9a70ff"), pa); rect(pb, X + 24, Y + 15, Math.min(b1, AW - X - 24), 1, hx("#e0d0ff"), pa);
+    // the burst's bar slams to the end of the scale and stays pinned there, pulsing, with off-the-scale arrows
+    const full = Wd - 24 - 18, b1 = easeOut(rampT(t, C.seconds, 0.4)) * full, pin = t > C.seconds + 0.4, pul = pin ? 0.75 + 0.25 * Math.sin(t * 9) : 1;
+    rect(pb, X + 24, Y + 15, b1, 6, hx("#9a70ff"), pa * pul); rect(pb, X + 24, Y + 15, b1, 1, hx("#e0d0ff"), pa);
+    if (pin) { glowD(pb, X + 24 + full, Y + 18, 10, hx("#c8b0ff"), 0.5 * pa * pul); if (Math.floor(t * 4) % 2 === 0) for (const ox of [4, 9]) for (let k = 0; k < 3; k++) { pb.mix(X + 24 + full + ox + k, Y + 16 + k, hx("#ffffff"), pa); pb.mix(X + 24 + full + ox + k, Y + 20 - k, hx("#ffffff"), pa); } }
     if (t > C.sun - 0.1) {
       planet(pb, X + 12, Y + 42, 5, { kind: "rock", ramp: SUNR, seed: 5, rot: t });
       const b2 = 4 + Math.max(0, t - C.sun) * 3.2; rect(pb, X + 24, Y + 39, b2, 6, hx("#f2b43a"), pa); rect(pb, X + 24, Y + 39, b2, 1, hx("#fff0b0"), pa);
