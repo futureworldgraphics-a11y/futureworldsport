@@ -12,7 +12,18 @@ entirely in code (Canvas 2D, TypeScript, anidoodle engine). No AI images, no sto
   never over the subject. In house-style films: the top-left HUD via `h.say` (label line + main line, soft dark band behind).
   Equations are just typed text (e.g. "E = MC2").
 
-## HOUSE STYLE (locked): cinematic pixel art = cinemaKit + pixel finish
+## HOUSE STYLE (locked, user's favourite): detailed native pixel art, cinematic, gently funny
+Reference: `src/canvas-core/candlePix.ts` (first 30 s of The One Speed) + `out/chunk_candlePix.mp4`.
+- Draw pixel by pixel with `src/canvas-core/pixelArt.ts` at 480x270 art pixels, blown up 4x (textured planets, craters,
+  night-side rim light, clustered nebulae, sparkle stars, Bayer dither only where tones meet). Never pixelate smooth art.
+- Keep candlePix's colour tone: warm amber interiors, cold violet/navy space, white-hot events, hue-shifted ramps.
+- NO DIRECT CUTS for most scene changes: camera moves, match cuts (a glow becomes the next scene's light), morphs,
+  pull-backs / scale reveals, pixel dissolves. The more creative the transition, the better.
+- Entertaining but never exaggerated: small cause-and-effect details (a cat's ear twitch, a bar pinned off-scale),
+  a recurring photon character, sound-worthy beats. Text: pixel font HUD top-left, typed with a block cursor.
+- Characters: `pixelChars.ts` sprites drawn 1:1 on the art grid (lit by the scene).
+
+## Earlier cinematic style (still available): cinemaKit + pixel finish
 Draw a cinematic frame with `src/canvas-core/cinemaKit.ts` (light primitives, starfield camera, globe, bloom, bokeh,
 vignette), then finish it as pixel art: `endFrame(ctx, env, frame, t, f, { pixel: 3, full: true, hud })`
 (`pixelFinish.ts`: 640x360 art pixels, fixed palette, 4x4 Bayer dither, pixel font). Start at `orbital-template/cinema/README.md`.
