@@ -7,18 +7,28 @@ entirely in code (Canvas 2D, TypeScript, anidoodle engine). No AI images, no sto
 - NOTHING LOOPS OR REPEATS. One continuous shot, exactly the audio's length (±1 frame). Every section gets a new visual idea.
 - Every visual beat starts ON the words it illustrates (timed from the audio, never guessed from words-per-minute).
 - Something visibly moves every second. Correct science. Deterministic: `rng(seed)` only, no Math.random/clock/ctx.filter.
-- FULL FRAME: the picture fills all 1920x1080. No letterbox / black bars, ever.
-- ALL TEXT IS PIXEL TEXT: `pixText` / `pixCaption` in `pixelKit.ts` (5x7 font, types on letter by letter).
-  Captions: short paraphrase (2–5 words) on the notched dark panel, bottom centre, 60 px margin, never over the subject.
-  Glyphs: A–Z 0–9 . , : ; / ( ) & ? ! ' - + = % *  (equations are just typed text, e.g. "E = MC2").
+- FULL FRAME: the picture fills all 1920x1080. No letterbox / black bars, ever (`endFrame(..., { full: true })`).
+- ALL TEXT IS PIXEL TEXT (5x7 pixel font, types on with a block cursor). Short paraphrases (2–5 words), 60 px margin,
+  never over the subject. In house-style films: the top-left HUD via `h.say` (label line + main line, soft dark band behind).
+  Equations are just typed text (e.g. "E = MC2").
+
+## HOUSE STYLE (locked): cinematic pixel art = cinemaKit + pixel finish
+Draw a cinematic frame with `src/canvas-core/cinemaKit.ts` (light primitives, starfield camera, globe, bloom, bokeh,
+vignette), then finish it as pixel art: `endFrame(ctx, env, frame, t, f, { pixel: 3, full: true, hud })`
+(`pixelFinish.ts`: 640x360 art pixels, fixed palette, 4x4 Bayer dither, pixel font). Start at `orbital-template/cinema/README.md`.
+Reference films: `oneSpeed.ts` (light speed, 4:06, the look the user liked most) and `paleDotPixel.ts` (Pale Blue Dot).
+Pipeline: `cinema/PLANNER_GUIDE.md`, `cinema/SCREENPLAY_FORMAT.md`, `cinema/CODER_RULES.md`; timing `python3 tools/align.py`
+(needs `pip install pocketsphinx`); scaffold `node tools/new-film.mjs <name>`; deliver `node tools/finish.mjs <name>`;
+gate `node tools/check.mjs <name>` (must print PASSED). Never restyle cinemaKit; `paleDot` must stay pixel-identical.
+Older looks (do not use for new films unless asked): `spaceStyle.ts` flat vector; `pixelKit.ts` hand-drawn pixel world
+(`lightSpeedOpus`, `lightSpeedHD`).
 
 ## Where things are (`orbital-template/`)
-- `src/canvas-core/spaceStyle.ts` — THE shared look (palette, banded `ball`, `inked` lines, `glow`, `text`, `orbitDashes`,
-  `motes`, `gluon`, `check`/`cross`, `card`, easing, `ramp`/`span`). Read it before coding; never restyle it.
-- Example chunks (read ONE for structure only, never copy scenes): `andromedaOpus.ts` (best), `quarks.ts`, `magnet.ts`, `nucleus.ts`.
+- House style: see above. Shared easing/`ramp`/`span` live in `spaceStyle.ts`.
 - Characters (LOCKED STYLE): every person is a detailed pixel sprite from `src/canvas-core/pixelChars.ts`
   (`drawChar(ctx, env, spec, x, footY, scale, pose, flip)`, ready cast in `CAST`: doctor, child, scientist, physicist;
   new people = a new `CharSpec`, never hand-drawn stick figures). Reference sheet: `out/charsheet.png`.
+  In house-style films draw them into the frame before `endFrame`, so the pixel finish palettes them with the scene.
 - Host page per chunk: `src/hosts/page-<name>.ts`. The Film export name MUST equal `<name>` (tools look it up by name).
 - Outputs: `orbital-template/out/chunk_<name>.mp4` + `out/contact_<name>.png`.
 

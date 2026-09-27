@@ -3,3 +3,5 @@ dist/
 .tmp/
 orbital-template/out/*-silent.mp4
 orbital-template/out/cs/
+*-silent.mp4
+**/out/check_*
