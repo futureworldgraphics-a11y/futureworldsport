@@ -693,6 +693,8 @@ const NAMES = ["CANDLE", "HYDROGEN", "SUN", "GAMMA BURST"], RULES = ["CHEMISTRY"
 const EXTRA = ["#0c1610", "#142418", "#1e3624", "#2c4c30", "#241810", "#3a2618", "#5a3a24", "#4e2440", "#7a3448", "#b85a46", "#e08a54", "#242430", "#3e3e50", "#6e7088", "#b4b6c8"];
 
 // ================================================================ the frame
+// finish settings: the delivered film is P=3 letterboxed; the HQ cut is P=2, full frame, HQ palette
+let FIN = { pixel: 3, full: false, hq: false, end: 246.4 };
 const draw = (ctx: Ctx, frame: number, env: Env) => {
   const t = frame / FPS;
   const f = beginFrame(ctx, env, frame, tint(t)), c = f.c;
@@ -706,9 +708,9 @@ const draw = (ctx: Ctx, frame: number, env: Env) => {
   m11OneSpeed(c, t); m12Number(c, t, f); m14Vacuum(c, t); landscape(c, t, f);
 
   endFrame(ctx, env, frame, t, f, {
-    pixel: 3,
+    pixel: FIN.pixel, full: FIN.full, hq: FIN.hq,
     palette: EXTRA,
-    black: Math.max(1 - ease(ramp(t, 0, 0.6)), ease(ramp(t, 245.5, 0.85))),
+    black: Math.max(1 - ease(ramp(t, 0, 0.6)), ease(ramp(t, FIN.end - 0.9, 0.85))),
     hud: (h) => {
       const { say } = h, hudA = hudTables(h, LABELS, LINES), sm = { cap: 15, w: 1.6 };
       // energy panel (burst vs Sun)
@@ -748,4 +750,12 @@ export const oneSpeed: Film = {
   meta: { title: "oneSpeed", W, H, fps: FPS, bpm: 120, durationFrames: DURATION },
   assets: { images: {} },
   shots: [{ id: "oneSpeed", start: 0, end: DURATION, draw }],
+};
+
+// HQ pixel cut of the opening 30 s: same scenes, 960x540 art pixels (2x2), expanded palette, light dither, full frame
+const HQ_DURATION = 900;
+export const oneSpeedHQ: Film = {
+  meta: { title: "oneSpeedHQ", W, H, fps: FPS, bpm: 120, durationFrames: HQ_DURATION },
+  assets: { images: {} },
+  shots: [{ id: "oneSpeedHQ", start: 0, end: HQ_DURATION, draw: (ctx, frame, env) => { const keep = FIN; FIN = { pixel: 2, full: true, hq: true, end: 30 }; try { draw(ctx, frame, env); } finally { FIN = keep; } } }],
 };
